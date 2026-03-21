@@ -1,4 +1,5 @@
 import { Navbar } from "@/components/layout/Navbar";
+import { AnnouncementBanner } from "@/components/layout/AnnouncementBanner";
 import { Hero } from "@/components/home/Hero";
 import { Stats } from "@/components/home/Stats";
 import { Features } from "@/components/home/Features";
@@ -10,8 +11,9 @@ import { Footer } from "@/components/layout/Footer";
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-x-hidden selection:bg-primary/30 selection:text-white">
+      <AnnouncementBanner />
       <Navbar />
-      
+
       <main className="flex-grow w-full">
         <Hero />
         <Stats />
@@ -20,7 +22,7 @@ export default function HomePage() {
         <Testimonials />
         <FAQ />
       </main>
-      
+
       <Footer />
     </div>
   );

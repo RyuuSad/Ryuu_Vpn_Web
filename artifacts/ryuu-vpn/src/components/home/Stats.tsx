@@ -1,16 +1,19 @@
 import { motion } from "framer-motion";
-
-const stats = [
-  { value: "50K+", label: "Active Nodes" },
-  { value: "30+", label: "Global Regions" },
-  { value: "99.9%", label: "Uptime Rating" },
-  { value: "10Gbps", label: "Network Backbone" },
-];
+import { useLang } from "@/context/LanguageContext";
 
 export function Stats() {
+  const { t } = useLang();
+
+  const stats = [
+    { value: "50K+", labelKey: "stats.users" },
+    { value: "30+", labelKey: "stats.locations" },
+    { value: "99.9%", labelKey: "stats.uptime" },
+    { value: "10Gbps", labelKey: "stats.speed" },
+  ];
+
   return (
     <section className="relative z-20 -mt-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <motion.div 
+      <motion.div
         initial={{ y: 30, opacity: 0 }}
         whileInView={{ y: 0, opacity: 1 }}
         viewport={{ once: true, margin: "-100px" }}
@@ -26,7 +29,7 @@ export function Stats() {
               {stat.value}
             </h3>
             <p className="text-xs md:text-sm text-primary font-bold uppercase tracking-widest">
-              {stat.label}
+              {t(stat.labelKey)}
             </p>
           </div>
         ))}
