@@ -102,8 +102,22 @@ export const api = {
   buyPlan: (planId: string): Promise<{ success: boolean; newBalance: number; planId: string; planName: string }> =>
     apiFetch("/dashboard/buy-plan", { method: "POST", body: JSON.stringify({ planId }) }),
 
-  submitTopup: (amountKs: number, paymentMethod: string, screenshotUrl: string): Promise<{ id: string; status: string }> =>
-    apiFetch("/topup/request", { method: "POST", body: JSON.stringify({ amountKs, paymentMethod, screenshotUrl }) }),
+  submitTopup: (amountKs: number, paymentMethod: string, screenshot: File): Promise<{ id: string; status: string }> => {
+    const token = localStorage.getItem("ryuu_token");
+    const form = new FormData();
+    form.append("amountKs", String(amountKs));
+    form.append("paymentMethod", paymentMethod);
+    form.append("screenshot", screenshot);
+    return fetch("/api/topup/request", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed: ${res.status}`);
+      return data;
+    });
+  },
 
   myTopups: (): Promise<TopupRequest[]> => apiFetch("/topup/my"),
 

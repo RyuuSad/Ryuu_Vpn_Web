@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, type AdminTopup, type AdminUser } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Users, CreditCard, RefreshCw, ExternalLink, ArrowLeft } from "lucide-react";
+import { Check, X, Users, CreditCard, RefreshCw, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
   const [editBalance, setEditBalance] = useState<Record<string, string>>({});
+  const [expandedScreenshot, setExpandedScreenshot] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || !user.isAdmin)) {
@@ -186,16 +187,35 @@ export default function AdminPage() {
                       <div className="text-xs text-white/40 mt-1">Note: {topup.adminNote}</div>
                     )}
                   </div>
-                  <a
-                    href={topup.screenshotUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setExpandedScreenshot(expandedScreenshot === topup.id ? null : topup.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-white/70 transition-all"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    {expandedScreenshot === topup.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     Screenshot
-                  </a>
+                  </button>
                 </div>
+
+                <AnimatePresence>
+                  {expandedScreenshot === topup.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-3 pb-1">
+                        <img
+                          src={topup.screenshotUrl}
+                          alt="Payment screenshot"
+                          className="w-full max-h-80 object-contain rounded-xl border border-white/10 bg-black/20"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {topup.status === "pending" && (
                   <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/5">
