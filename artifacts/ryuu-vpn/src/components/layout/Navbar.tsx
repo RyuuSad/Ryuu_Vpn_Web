@@ -3,12 +3,10 @@ import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/shared/AuthModal";
 import { Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useLang } from "@/context/LanguageContext";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { lang, setLang, t } = useLang();
 
   const logoUrl =
     "https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/interface-essential/check-badge-89c8o2nllxjypnppfmi9xm.png/check-badge-t05f9l6xba1iwy9pjudt.png?_a=DATAiZAAZAA0";
@@ -43,55 +41,22 @@ export function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8">
-            <a
-              href="#features"
-              className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              {t("nav.features")}
+          <div className="hidden md:flex items-center gap-10">
+            <a href="#features" className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+              Features
             </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              {t("nav.pricing")}
+            <a href="#pricing" className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+              Pricing
             </a>
-            <a
-              href="#faq"
-              className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              {t("nav.faq")}
+            <a href="#faq" className="text-sm font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+              FAQ
             </a>
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
-            {/* Language switcher */}
-            <div className="flex items-center rounded-full border border-white/10 overflow-hidden bg-white/5 backdrop-blur-sm">
-              <button
-                onClick={() => setLang("en")}
-                className={`px-3 py-1.5 text-xs font-bold tracking-wider transition-all ${
-                  lang === "en"
-                    ? "bg-primary text-white"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLang("my")}
-                className={`px-3 py-1.5 text-xs font-bold tracking-wider transition-all ${
-                  lang === "my"
-                    ? "bg-primary text-white"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                မြန်မာ
-              </button>
-            </div>
-
+          <div className="hidden md:block">
             <AuthModal>
               <Button className="h-11 px-6 font-display font-bold text-sm tracking-wider bg-primary/10 text-primary border border-primary/50 hover:bg-primary hover:text-primary-foreground transition-all shadow-[0_0_15px_-3px_rgba(168,85,247,0.3)] hover:shadow-[0_0_20px_rgba(168,85,247,0.6)]">
-                {t("nav.getStarted").toUpperCase()}
+                GET STARTED
               </Button>
             </AuthModal>
           </div>
@@ -107,55 +72,19 @@ export function Navbar() {
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="md:hidden bg-background/95 backdrop-blur-xl border-b border-white/5 p-6 space-y-5 absolute w-full left-0 shadow-2xl">
-          <a
-            href="#features"
-            onClick={() => setIsOpen(false)}
-            className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            {t("nav.features")}
+        <div className="md:hidden bg-background/95 backdrop-blur-xl border-b border-white/5 p-6 space-y-6 absolute w-full left-0 shadow-2xl">
+          <a href="#features" onClick={() => setIsOpen(false)} className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+            Features
           </a>
-          <a
-            href="#pricing"
-            onClick={() => setIsOpen(false)}
-            className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            {t("nav.pricing")}
+          <a href="#pricing" onClick={() => setIsOpen(false)} className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+            Pricing
           </a>
-          <a
-            href="#faq"
-            onClick={() => setIsOpen(false)}
-            className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            {t("nav.faq")}
+          <a href="#faq" onClick={() => setIsOpen(false)} className="block text-base font-medium text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">
+            FAQ
           </a>
-
-          {/* Language switcher mobile */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground uppercase tracking-widest">Lang:</span>
-            <div className="flex items-center rounded-full border border-white/10 overflow-hidden bg-white/5">
-              <button
-                onClick={() => setLang("en")}
-                className={`px-3 py-1.5 text-xs font-bold tracking-wider transition-all ${
-                  lang === "en" ? "bg-primary text-white" : "text-muted-foreground"
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLang("my")}
-                className={`px-3 py-1.5 text-xs font-bold tracking-wider transition-all ${
-                  lang === "my" ? "bg-primary text-white" : "text-muted-foreground"
-                }`}
-              >
-                မြန်မာ
-              </button>
-            </div>
-          </div>
-
           <AuthModal>
             <Button className="w-full h-12 font-display font-bold text-lg tracking-wider bg-primary/10 text-primary border border-primary/50 hover:bg-primary hover:text-primary-foreground transition-all">
-              {t("nav.getStarted").toUpperCase()}
+              GET STARTED
             </Button>
           </AuthModal>
         </div>

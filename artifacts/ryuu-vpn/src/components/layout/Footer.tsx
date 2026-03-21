@@ -1,8 +1,6 @@
 import { Link } from "wouter";
-import { useLang } from "@/context/LanguageContext";
 
 export function Footer() {
-  const { t } = useLang();
   const logoUrl =
     "https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/interface-essential/check-badge-89c8o2nllxjypnppfmi9xm.png/check-badge-t05f9l6xba1iwy9pjudt.png?_a=DATAiZAAZAA0";
 
@@ -19,54 +17,32 @@ export function Footer() {
                 RYUU <span className="text-primary">VPN</span>
               </span>
             </Link>
-            <p className="text-muted-foreground text-sm leading-relaxed">{t("footer.tagline")}</p>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Your privacy. Our mission.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-16">
             <div>
-              <h4 className="font-display font-bold text-white mb-6 uppercase tracking-widest text-sm">
-                {t("footer.links")}
-              </h4>
+              <h4 className="font-display font-bold text-white mb-6 uppercase tracking-widest text-sm">Quick Links</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
-                <li>
-                  <a href="#features" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">
-                    {t("nav.features")}
-                  </a>
-                </li>
-                <li>
-                  <a href="#pricing" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">
-                    {t("nav.pricing")}
-                  </a>
-                </li>
-                <li>
-                  <a href="#faq" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">
-                    {t("nav.faq")}
-                  </a>
-                </li>
+                <li><a href="#features" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">Features</a></li>
+                <li><a href="#pricing" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">Pricing</a></li>
+                <li><a href="#faq" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">FAQ</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-display font-bold text-white mb-6 uppercase tracking-widest text-sm">
-                {t("footer.contact")}
-              </h4>
+              <h4 className="font-display font-bold text-white mb-6 uppercase tracking-widest text-sm">Contact Us</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">
-                    Telegram
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">
-                    Facebook
-                  </a>
-                </li>
+                <li><a href="#" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">Telegram</a></li>
+                <li><a href="#" className="hover:text-primary transition-colors hover:translate-x-1 inline-block transform duration-200">Facebook</a></li>
               </ul>
             </div>
           </div>
         </div>
 
         <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium text-muted-foreground">
-          <p>{t("footer.copy")}</p>
+          <p>© {new Date().getFullYear()} RYUU VPN. All rights reserved.</p>
           <div className="flex items-center gap-3 bg-card/50 px-4 py-2 rounded-full border border-white/5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>

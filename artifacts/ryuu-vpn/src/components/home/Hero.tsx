@@ -1,10 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/shared/AuthModal";
 import { motion } from "framer-motion";
-import { useLang } from "@/context/LanguageContext";
 
 export function Hero() {
-  const { t } = useLang();
   const logoUrl =
     "https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/interface-essential/check-badge-89c8o2nllxjypnppfmi9xm.png/check-badge-t05f9l6xba1iwy9pjudt.png?_a=DATAiZAAZAA0";
 
@@ -20,14 +18,13 @@ export function Hero() {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
-        {/* Small tagline */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
           className="mb-6 px-4 py-1.5 rounded-full border border-purple-500/30 bg-purple-900/20 text-purple-300 text-xs font-semibold tracking-widest uppercase"
         >
-          {t("hero.tagline")}
+          Singapore Servers · Zero Logs · Always On
         </motion.div>
 
         <motion.div
@@ -50,10 +47,10 @@ export function Hero() {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="font-display text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight text-white mb-6 uppercase leading-none"
         >
-          {t("hero.headline1")} {t("hero.headline2")}
+          Secure. Fast.
           <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary drop-shadow-lg">
-            {t("hero.headline3")}
+            Unrestricted.
           </span>
         </motion.h1>
 
@@ -63,7 +60,7 @@ export function Hero() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="max-w-2xl text-lg md:text-xl text-muted-foreground mb-12 font-medium"
         >
-          {t("hero.sub")}
+          Protect your digital identity with military-grade encryption. Bypass restrictions, mask your identity, and explore the internet without borders.
         </motion.p>
 
         <motion.div
@@ -77,7 +74,7 @@ export function Hero() {
               size="lg"
               className="h-16 px-10 text-lg font-display font-bold tracking-widest uppercase bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_-5px_rgba(168,85,247,0.6)] hover:shadow-[0_0_40px_-5px_rgba(168,85,247,0.8)] transition-all hover:-translate-y-1"
             >
-              {t("hero.cta1")}
+              Get Started
             </Button>
           </AuthModal>
           <Button
@@ -86,7 +83,7 @@ export function Hero() {
             className="h-16 px-10 text-lg font-display font-bold tracking-widest uppercase border-white/20 text-white bg-white/5 hover:bg-white/10 backdrop-blur-sm transition-all hover:-translate-y-1"
             asChild
           >
-            <a href="#pricing">{t("hero.cta2")}</a>
+            <a href="#pricing">View Plans</a>
           </Button>
         </motion.div>
       </div>

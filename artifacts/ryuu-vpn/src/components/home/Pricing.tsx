@@ -1,51 +1,48 @@
-import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/shared/AuthModal";
 import { motion } from "framer-motion";
-import { useLang } from "@/context/LanguageContext";
+import { Star } from "lucide-react";
+
+const plans = [
+  {
+    id: "starter",
+    name: "STARTER PLAN",
+    sub: "Trial & Light Users",
+    price: "3,000",
+    currency: "Ks",
+    data: "50 GB",
+    validity: "20 Days",
+    note: "Note: Data top-up not available for this plan.",
+    highlight: false,
+    delay: 0.1,
+  },
+  {
+    id: "premium",
+    name: "PREMIUM VALUE",
+    sub: "Best Seller — Most Popular",
+    price: "5,000",
+    currency: "Ks",
+    data: "120 GB",
+    validity: "30 Days",
+    note: "✅ Rollover: Unused data carries over when you renew before expiry.",
+    highlight: true,
+    delay: 0.3,
+  },
+  {
+    id: "ultra",
+    name: "ULTRA PRO",
+    sub: "Heavy Users — 4K & Downloads",
+    price: "10,000",
+    currency: "Ks",
+    data: "250 GB",
+    validity: "30 Days",
+    note: "✅ Data rollover + High-Speed Priority access.",
+    highlight: false,
+    delay: 0.5,
+  },
+];
 
 export function Pricing() {
-  const { t } = useLang();
-
-  const plans = [
-    {
-      id: "starter",
-      nameKey: "plan.starter.name",
-      subKey: "plan.starter.sub",
-      price: "3,000",
-      currency: "Ks",
-      data: "50 GB",
-      validity: "20",
-      noteKey: "pricing.note.starter",
-      highlight: false,
-      delay: 0.1,
-    },
-    {
-      id: "premium",
-      nameKey: "plan.premium.name",
-      subKey: "plan.premium.sub",
-      price: "5,000",
-      currency: "Ks",
-      data: "120 GB",
-      validity: "30",
-      noteKey: "pricing.note.premium",
-      highlight: true,
-      delay: 0.3,
-    },
-    {
-      id: "ultra",
-      nameKey: "plan.ultra.name",
-      subKey: "plan.ultra.sub",
-      price: "10,000",
-      currency: "Ks",
-      data: "250 GB",
-      validity: "30",
-      noteKey: "pricing.note.ultra",
-      highlight: false,
-      delay: 0.5,
-    },
-  ];
-
   return (
     <section id="pricing" className="py-24 md:py-32 bg-black relative">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/10 blur-[150px] rounded-full pointer-events-none" />
@@ -58,10 +55,8 @@ export function Pricing() {
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl font-bold mb-4 uppercase text-white"
           >
-            {t("pricing.title")}{" "}
-            <span className="text-primary drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-              {t("pricing.titleHighlight")}
-            </span>
+            Choose Your{" "}
+            <span className="text-primary drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">Plan</span>
           </motion.h2>
           <motion.p
             initial={{ y: 20, opacity: 0 }}
@@ -70,7 +65,7 @@ export function Pricing() {
             transition={{ delay: 0.1 }}
             className="text-muted-foreground max-w-2xl mx-auto text-lg font-medium"
           >
-            {t("pricing.sub")}
+            Transparent pricing. No hidden fees. Real Singapore VPN.
           </motion.p>
         </div>
 
@@ -91,54 +86,36 @@ export function Pricing() {
               {plan.highlight && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary to-secondary text-white px-6 py-2 rounded-full text-xs font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(168,85,247,0.5)] flex items-center gap-1.5">
                   <Star className="w-3 h-3 fill-white" />
-                  {t("pricing.popular")}
+                  Most Popular
                 </div>
               )}
 
               <div className="mb-6">
-                <h3
-                  className={`font-display text-xl font-bold tracking-widest mb-1 ${
-                    plan.highlight ? "text-primary" : "text-white"
-                  }`}
-                >
-                  {t(plan.nameKey)}
+                <h3 className={`font-display text-xl font-bold tracking-widest mb-1 ${plan.highlight ? "text-primary" : "text-white"}`}>
+                  {plan.name}
                 </h3>
-                <p className="text-xs text-muted-foreground font-medium">{t(plan.subKey)}</p>
+                <p className="text-xs text-muted-foreground font-medium">{plan.sub}</p>
               </div>
 
-              {/* Price */}
               <div className="flex items-baseline gap-2 mb-6">
-                <span className="text-5xl font-bold text-white tracking-tight">
-                  {plan.price}
-                </span>
+                <span className="text-5xl font-bold text-white tracking-tight">{plan.price}</span>
                 <span className="text-xl font-bold text-primary">{plan.currency}</span>
               </div>
 
-              {/* Data & Validity */}
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
-                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">
-                    {t("pricing.data")}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Data</p>
                   <p className="text-lg font-bold text-white">{plan.data}</p>
                 </div>
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
-                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">
-                    {t("pricing.validity")}
-                  </p>
-                  <p className="text-lg font-bold text-white">
-                    {plan.validity}{" "}
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {t("pricing.days")}
-                    </span>
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Validity</p>
+                  <p className="text-base font-bold text-white">{plan.validity}</p>
                 </div>
               </div>
 
-              {/* Note */}
               <div className="flex-grow mb-8">
                 <p className="text-xs text-muted-foreground leading-relaxed border-l-2 border-primary/40 pl-3">
-                  {t(plan.noteKey)}
+                  {plan.note}
                 </p>
               </div>
 
@@ -150,7 +127,7 @@ export function Pricing() {
                       : "bg-white/5 hover:bg-white/15 text-white border border-white/10"
                   }`}
                 >
-                  {t("pricing.buy")}
+                  Buy Now
                 </Button>
               </AuthModal>
             </motion.div>

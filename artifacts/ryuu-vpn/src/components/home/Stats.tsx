@@ -1,16 +1,13 @@
 import { motion } from "framer-motion";
-import { useLang } from "@/context/LanguageContext";
+
+const stats = [
+  { value: "50K+", label: "Active Users" },
+  { value: "30+", label: "Server Locations" },
+  { value: "99.9%", label: "Uptime" },
+  { value: "10Gbps", label: "Network Speed" },
+];
 
 export function Stats() {
-  const { t } = useLang();
-
-  const stats = [
-    { value: "50K+", labelKey: "stats.users" },
-    { value: "30+", labelKey: "stats.locations" },
-    { value: "99.9%", labelKey: "stats.uptime" },
-    { value: "10Gbps", labelKey: "stats.speed" },
-  ];
-
   return (
     <section className="relative z-20 -mt-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -29,7 +26,7 @@ export function Stats() {
               {stat.value}
             </h3>
             <p className="text-xs md:text-sm text-primary font-bold uppercase tracking-widest">
-              {t(stat.labelKey)}
+              {stat.label}
             </p>
           </div>
         ))}
