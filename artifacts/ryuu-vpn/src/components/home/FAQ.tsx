@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     q: "Is there a free trial?",
-    a: "The Starter Plan (3,000 Ks / 50GB / 20 days) is our most affordable entry point to try out RYUU VPN.",
+    a: "Yes! You can get a trial key by contacting our admins directly via Telegram, Facebook, or Viber. Reach out and we'll set you up.",
   },
   {
     q: "What servers do you use?",
