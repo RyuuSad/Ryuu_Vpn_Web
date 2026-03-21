@@ -4,7 +4,47 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, CheckCircle2, Clock, ImagePlus, X } from "lucide-react";
+import { ArrowLeft, Upload, CheckCircle2, Clock, ImagePlus, X, Copy, Check } from "lucide-react";
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Strip any prefix like "Fn " — copy only the numeric/account part
+    const toCopy = text.replace(/^Fn\s*/i, "").trim();
+    try {
+      await navigator.clipboard.writeText(toCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const el = document.createElement("textarea");
+      el.value = toCopy;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title="Copy number"
+      className={`inline-flex items-center justify-center w-6 h-6 rounded-md transition-all shrink-0 ${
+        copied
+          ? "bg-green-500/20 text-green-400"
+          : "bg-white/5 text-white/30 hover:bg-primary/20 hover:text-primary"
+      }`}
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
+}
 
 const PAYMENT_METHODS = [
   { id: "kbz_1", label: "KBZ Pay", number: "09954901109", name: "Saw Pyae Sone Oo" },
@@ -139,6 +179,7 @@ export default function TopupPage() {
               <div key={m.id} className="flex items-center gap-3 text-sm">
                 <span className="w-20 shrink-0 font-bold text-white/50 text-xs">{m.label}</span>
                 <span className="text-primary font-mono font-bold">{m.number}</span>
+                <CopyButton text={m.number} />
                 <span className="text-white/40 text-xs ml-auto">{m.name}</span>
               </div>
             ))}
