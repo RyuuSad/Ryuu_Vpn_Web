@@ -1,0 +1,23 @@
+node_modules
+**/node_modules
+**/.git
+**/dist
+**/build
+
+# Dev/editor files
+.env
+.env.*
+*.log
+.DS_Store
+*.swp
+
+# Replit-specific
+.replit
+replit.nix
+.local/
+.cache/
+
+# Test/mock files
+artifacts/mockup-sandbox/
+
+# Keep deploy/ scripts in context so docker-compose can access them

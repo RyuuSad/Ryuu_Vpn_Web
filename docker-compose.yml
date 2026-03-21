@@ -1,0 +1,61 @@
+services:
+  # ── Node.js Application ──────────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: ryuu-vpn-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://ryuu:${DB_PASSWORD}@db:5432/ryuuvpn
+      PORT: 8080
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: ryuu-vpn-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ryuu
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ryuuvpn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ryuu -d ryuuvpn"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-net
+
+  # ── Nginx Reverse Proxy ──────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: ryuu-vpn-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.active.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - app
+    networks:
+      - app-net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  app-net:
+    driver: bridge
