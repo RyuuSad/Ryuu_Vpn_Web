@@ -24,7 +24,7 @@ const reviews = [
 
 export function Testimonials() {
   return (
-    <section className="py-24 md:py-32 bg-background border-y border-white/5 relative">
+    <section className="py-28 md:py-36 bg-background border-y border-white/5 relative">
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-secondary/5 via-background to-background pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">

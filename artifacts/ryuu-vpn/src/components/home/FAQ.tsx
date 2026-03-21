@@ -26,7 +26,7 @@ const faqs = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="py-24 md:py-32 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="faq" className="py-28 md:py-36 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
       <div className="text-center mb-16">
         <motion.h2
           initial={{ y: 20, opacity: 0 }}
