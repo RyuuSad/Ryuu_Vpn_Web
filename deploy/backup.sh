@@ -36,7 +36,7 @@ echo "[backup] Dumping PostgreSQL database..."
 DB_DUMP_PATH="${BACKUP_DIR}/db-${DATE}.sql"
 
 docker compose -f "$APP_DIR/docker-compose.yml" exec -T db \
-  pg_dump -U ryuuvpn ryuuvpndb > "$DB_DUMP_PATH"
+  pg_dump -U ryuu ryuuvpn > "$DB_DUMP_PATH"
 
 echo "[backup] Database dump saved: $(du -sh "$DB_DUMP_PATH" | cut -f1)"
 
