@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { useLang } from "@/context/LanguageContext";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -38,19 +37,10 @@ export function AnnouncementBanner() {
               <div className="absolute -top-20 -right-20 w-56 h-56 bg-purple-600/20 blur-[60px] rounded-full pointer-events-none" />
               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-600/15 blur-[50px] rounded-full pointer-events-none" />
 
-              {/* Dismiss button */}
-              <button
-                onClick={() => setDismissed(true)}
-                className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-white/60 hover:text-white transition-all"
-                aria-label={t("ann.dismiss")}
-              >
-                <X className="w-4 h-4" />
-              </button>
-
               {/* Content */}
               <div className="relative z-10 p-6 sm:p-8">
                 {/* Title */}
-                <h2 className="text-white font-bold text-lg sm:text-xl leading-snug mb-4 pr-8">
+                <h2 className="text-white font-bold text-lg sm:text-xl leading-snug mb-4">
                   {t("ann.title")}
                 </h2>
 
