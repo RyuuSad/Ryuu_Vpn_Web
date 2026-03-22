@@ -58,18 +58,32 @@ export interface Plan {
   trafficLimitBytes: number;
 }
 
+export interface PurchaseStatus {
+  purchasesThisMonth: number;
+  monthlyLimit: number;
+  remainingPurchases: number;
+  currentPlanId: string | null;
+  canBuyStarter: boolean;
+}
+
 export interface TopupRequest {
   id: string;
   userId: string;
   amountKs: number;
   paymentMethod: string;
-  screenshotUrl: string;
   status: string;
   adminNote: string | null;
   createdAt: string;
 }
 
-export interface AdminTopup extends TopupRequest {
+export interface AdminTopup {
+  id: string;
+  amountKs: number;
+  paymentMethod: string;
+  status: string;
+  adminNote: string | null;
+  createdAt: string;
+  userId: string;
   username: string | null;
   userBalance: number | null;
 }
@@ -99,7 +113,9 @@ export const api = {
 
   plans: (): Promise<Plan[]> => apiFetch("/dashboard/plans"),
 
-  buyPlan: (planId: string): Promise<{ success: boolean; newBalance: number; planId: string; planName: string }> =>
+  purchaseStatus: (): Promise<PurchaseStatus> => apiFetch("/dashboard/purchase-status"),
+
+  buyPlan: (planId: string): Promise<{ success: boolean; newBalance: number; planId: string; planName: string; purchasesThisMonth: number; remainingPurchases: number }> =>
     apiFetch("/dashboard/buy-plan", { method: "POST", body: JSON.stringify({ planId }) }),
 
   giftPlan: (recipientUsername: string, planId: string): Promise<{ success: boolean; newBalance: number; recipientUsername: string; planId: string; planName: string }> =>
@@ -126,6 +142,8 @@ export const api = {
 
   admin: {
     topups: (): Promise<AdminTopup[]> => apiFetch("/admin/topups"),
+    topupScreenshot: (id: string): Promise<{ screenshotUrl: string }> =>
+      apiFetch(`/admin/topups/${id}/screenshot`),
     approveTopup: (id: string, adminNote?: string) =>
       apiFetch(`/admin/topups/${id}/approve`, { method: "POST", body: JSON.stringify({ adminNote }) }),
     rejectTopup: (id: string, adminNote?: string) =>

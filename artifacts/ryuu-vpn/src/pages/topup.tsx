@@ -4,21 +4,19 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, CheckCircle2, Clock, ImagePlus, X, Copy, Check } from "lucide-react";
+import { ArrowLeft, Upload, CheckCircle2, Clock, ImagePlus, X, Copy, Check, Wallet } from "lucide-react";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Strip any prefix like "Fn " — copy only the numeric/account part
     const toCopy = text.replace(/^Fn\s*/i, "").trim();
     try {
       await navigator.clipboard.writeText(toCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const el = document.createElement("textarea");
       el.value = toCopy;
       document.body.appendChild(el);
@@ -158,22 +156,27 @@ export default function TopupPage() {
   return (
     <div className="min-h-screen bg-background text-white">
       <nav className="border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center gap-4">
-          <button onClick={() => navigate("/dashboard")} className="text-white/50 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <span className="font-display font-bold text-lg tracking-wide">Top Up Balance</span>
+        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/dashboard")} className="text-white/50 hover:text-white transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <span className="font-display font-bold text-lg tracking-wide">Top Up Balance</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.07]">
+            <Wallet className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold text-primary">{user.balanceKs.toLocaleString()} Ks</span>
+          </div>
         </div>
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
-        {/* Payment info box */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5"
         >
-          <h3 className="text-sm font-bold uppercase tracking-widest text-amber-400 mb-4">🏦 Payment Information</h3>
+          <h3 className="text-sm font-bold uppercase tracking-widest text-amber-400 mb-4">Payment Information</h3>
           <div className="grid gap-2.5">
             {PAYMENT_METHODS.map((m) => (
               <div key={m.id} className="flex items-center gap-3 text-sm">
@@ -186,13 +189,12 @@ export default function TopupPage() {
           </div>
           <div className="mt-4 pt-4 border-t border-white/5">
             <p className="text-xs text-amber-400/80">
-              ⚠️ Write <strong>"payment"</strong> in the remarks — do NOT write "VPN"
+              Write <strong>"payment"</strong> in the remarks — do NOT write "VPN"
             </p>
           </div>
         </motion.div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Amount */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -229,7 +231,6 @@ export default function TopupPage() {
             />
           </motion.div>
 
-          {/* Payment method */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -262,7 +263,6 @@ export default function TopupPage() {
             </div>
           </motion.div>
 
-          {/* Screenshot Upload */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

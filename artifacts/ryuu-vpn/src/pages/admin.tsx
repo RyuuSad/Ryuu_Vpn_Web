@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, type AdminTopup, type AdminUser } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Users, CreditCard, RefreshCw, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Check, X, Users, CreditCard, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, ShieldCheck, ShieldOff, Loader2 } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -16,6 +16,50 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-widest border ${colors[status] ?? "bg-white/5 text-white/40 border-white/10"}`}>
       {status}
     </span>
+  );
+}
+
+function ScreenshotExpander({ topupId, isExpanded }: { topupId: string; isExpanded: boolean }) {
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (isExpanded && !screenshotUrl) {
+      setLoading(true);
+      api.admin.topupScreenshot(topupId)
+        .then((data) => setScreenshotUrl(data.screenshotUrl))
+        .catch(() => toast({ title: "Failed to load screenshot", variant: "destructive" }))
+        .finally(() => setLoading(false));
+    }
+  }, [isExpanded, topupId, screenshotUrl, toast]);
+
+  if (!isExpanded) return null;
+
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="overflow-hidden"
+    >
+      <div className="pt-3 pb-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-white/30 animate-spin" />
+          </div>
+        ) : screenshotUrl ? (
+          <img
+            src={screenshotUrl}
+            alt="Payment screenshot"
+            className="w-full max-h-80 object-contain rounded-xl border border-white/10 bg-black/20"
+          />
+        ) : (
+          <p className="text-xs text-white/30 text-center py-4">Screenshot unavailable</p>
+        )}
+      </div>
+    </motion.div>
   );
 }
 
@@ -102,6 +146,24 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleAdmin = async (u: AdminUser) => {
+    if (u.id === user?.id) return;
+    const willBeAdmin = !u.isAdmin;
+    const label = u.username;
+    setActionLoading(u.id + "_admin");
+    try {
+      await api.admin.setAdmin(u.id, willBeAdmin);
+      toast({
+        title: willBeAdmin ? `${label} is now Admin` : `${label} removed from Admin`,
+      });
+      fetchData();
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (authLoading || (!user?.isAdmin)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -125,7 +187,6 @@ export default function AdminPage() {
       </nav>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Tabs */}
         <div className="flex gap-2 mb-8">
           <button
             onClick={() => setTab("topups")}
@@ -175,6 +236,9 @@ export default function AdminPage() {
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-bold text-white">{topup.username}</span>
                       <StatusBadge status={topup.status} />
+                      {topup.userBalance !== null && (
+                        <span className="text-xs text-white/30">Balance: {topup.userBalance.toLocaleString()} Ks</span>
+                      )}
                     </div>
                     <div className="text-sm text-white/50">
                       <span className="text-primary font-bold">{topup.amountKs.toLocaleString()} Ks</span>
@@ -198,23 +262,7 @@ export default function AdminPage() {
                 </div>
 
                 <AnimatePresence>
-                  {expandedScreenshot === topup.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="pt-3 pb-1">
-                        <img
-                          src={topup.screenshotUrl}
-                          alt="Payment screenshot"
-                          className="w-full max-h-80 object-contain rounded-xl border border-white/10 bg-black/20"
-                        />
-                      </div>
-                    </motion.div>
-                  )}
+                  <ScreenshotExpander topupId={topup.id} isExpanded={expandedScreenshot === topup.id} />
                 </AnimatePresence>
 
                 {topup.status === "pending" && (
@@ -291,6 +339,27 @@ export default function AdminPage() {
                     >
                       {actionLoading === u.id + "_balance" ? "..." : "Set"}
                     </button>
+                    {u.id !== user.id && (
+                      <button
+                        onClick={() => handleToggleAdmin(u)}
+                        disabled={actionLoading !== null}
+                        title={u.isAdmin ? "Remove admin" : "Make admin"}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-all disabled:opacity-40 ${
+                          u.isAdmin
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+                            : "bg-white/5 border-white/10 text-white/50 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-400"
+                        }`}
+                      >
+                        {actionLoading === u.id + "_admin" ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : u.isAdmin ? (
+                          <ShieldOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        )}
+                        {u.isAdmin ? "Remove Admin" : "Make Admin"}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

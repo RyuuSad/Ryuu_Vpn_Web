@@ -1,12 +1,10 @@
-const BASE_URL = process.env.REMNAWAVE_URL;
-const API_KEY = process.env.REMNAWAVE_API_KEY;
-
-if (!BASE_URL) throw new Error("REMNAWAVE_URL is not set");
-if (!API_KEY) throw new Error("REMNAWAVE_API_KEY is not set");
-
 const DEFAULT_SQUAD_UUID = "cc8bf98f-8581-4dd0-b7ff-bc9c93a3cc61";
 
 async function rwFetch(path: string, options: RequestInit = {}) {
+  const BASE_URL = process.env.REMNAWAVE_URL;
+  const API_KEY = process.env.REMNAWAVE_API_KEY;
+  if (!BASE_URL) throw new Error("REMNAWAVE_URL is not configured on this server");
+  if (!API_KEY) throw new Error("REMNAWAVE_API_KEY is not configured on this server");
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
     ...options,

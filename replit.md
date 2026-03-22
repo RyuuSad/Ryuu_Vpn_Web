@@ -1,121 +1,138 @@
-# Workspace
+# RYUU VPN — Monorepo
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack VPN subscription service for Myanmar users. Dark cyberpunk-themed React/Vite frontend, Express 5 backend, PostgreSQL (Drizzle ORM), Remnawave VPN panel integration, and Telegram bots for admin notifications and Mini App.
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
+- **Monorepo**: pnpm workspaces
+- **Node.js**: v24
+- **Package manager**: pnpm v10
+- **TypeScript**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite + Tailwind + Framer Motion
+- **Auth**: JWT (jsonwebtoken) + bcryptjs
+- **Security**: helmet (CSP headers), express-rate-limit, input validation
 
 ## Structure
 
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
+```
+├── artifacts/
+│   ├── ryuu-vpn/           # React/Vite frontend (port 26090 dev)
+│   └── api-server/         # Express 5 API server (port 8080)
+├── lib/
+│   ├── db/                 # Drizzle ORM schema + DB connection
+│   ├── api-spec/           # OpenAPI spec + Orval codegen
 │   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+│   └── api-zod/            # Generated Zod schemas
+├── scripts/                # Utility scripts
+└── pnpm-workspace.yaml
 ```
 
-## TypeScript & Composite Projects
+## Environment Variables (Required on VPS)
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SESSION_SECRET` | JWT signing secret |
+| `REMNAWAVE_URL` | Remnawave panel base URL |
+| `REMNAWAVE_API_KEY` | Remnawave API key |
+| `TELEGRAM_BOT_TOKEN` | **Notification bot** token — sends payment alerts to admins |
+| `TELEGRAM_ADMIN_CHAT_IDS` | Comma-separated Telegram chat IDs for admin notifications |
+| `MINI_BOT_TOKEN` | **Mini App bot** token — handles /start command, sends Mini App button |
+| `MINI_APP_URL` | Full URL of the app (e.g. https://ryuukakkoii.site) |
+| `BOT_WEBHOOK_SECRET` | Optional secret for Telegram webhook verification |
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+> `REMNAWAVE_*` vars are read lazily (per-call), so the server starts even if they're missing — useful in dev.
 
-## Root Scripts
+## Setting Up the Mini App Bot Webhook (on VPS)
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+After deploying, register the webhook once:
+```bash
+curl -X POST https://api.telegram.org/bot<MINI_BOT_TOKEN>/setWebhook \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://ryuukakkoii.site/api/bot/webhook","secret_token":"<BOT_WEBHOOK_SECRET>"}'
+```
 
-## Packages
+## API Routes
 
-### `artifacts/api-server` (`@workspace/api-server`)
+### Auth (`/api/auth`)
+- `POST /register` — create account (rate limited: 5/hour per IP)
+- `POST /login` — login (rate limited: 10/15min per IP, blocks on failures only)
+- `GET /me` — current user info
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+### Dashboard (`/api/dashboard`)
+- `GET /stats` — VPN stats, data usage, balance
+- `GET /subscription` — subscription URL
+- `GET /plans` — available plans
+- `GET /purchase-status` — monthly purchase count and limits
+- `POST /buy-plan` — buy a plan (deducts balance, activates on Remnawave)
+- `POST /gift-plan` — gift a plan to another user
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+### Top-Up (`/api/topup`)
+- `POST /request` — submit top-up with screenshot (sends photo to admin Telegram)
+- `GET /my` — user's own top-up history (status only, no screenshot data)
 
-### `lib/db` (`@workspace/db`)
+### Admin (`/api/admin`) — requires admin JWT
+- `GET /topups` — list all top-ups (no screenshot data in list)
+- `GET /topups/:id/screenshot` — lazy-load screenshot for a specific top-up
+- `POST /topups/:id/approve` — approve + credit balance + notify admin channel
+- `POST /topups/:id/reject` — reject + notify admin channel
+- `GET /users` — list all users
+- `POST /users/:id/set-admin` — promote/demote admin (cannot self-demote)
+- `POST /users/:id/set-balance` — set balance directly
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+### Bot (`/api/bot`)
+- `POST /webhook` — Telegram webhook handler for Mini App bot (/start, /help)
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
+## Security Features
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+- **Helmet**: CSP, X-Frame-Options, X-Content-Type-Options, and more on all responses
+- **Rate limiting**: Login (10 fails/15min), Register (5/hour) per IP
+- **Timing-safe login**: dummy bcrypt hash computed for missing users to prevent user enumeration
+- **Input length caps**: username 32 chars, password 128 chars
+- **Password strength**: bcrypt cost factor 12
+- **Admin self-protection**: admin cannot demote themselves
+- **Separate bot tokens**: NOTI_BOT_TOKEN (admin alerts) vs MINI_BOT_TOKEN (user Mini App)
+- **Screenshot lazy-load**: screenshots not sent in list API, fetched on-demand per item
+- **JSON body limit**: 1MB (multipart/form-data files handled separately by multer)
 
-### `lib/api-spec` (`@workspace/api-spec`)
+## Business Rules
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
+- Max 2 plan purchases per user per calendar month
+- No downgrade: Premium/Ultra users cannot buy Starter
+- No self-gifting
+- Recipient inherits the downgrade restriction when gifted to
+- Admin-seeded users: `ryuu` (ryuu123) and `sayuri` (sayuri123) on every cold start (idempotent)
 
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
+## Plans
 
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
+| ID | Name | Data | Validity | Price |
+|---|---|---|---|---|
+| starter | Starter Plan | 50 GB | 30 days | 3,000 Ks |
+| premium | Premium Value | 120 GB | 30 days | 5,000 Ks |
+| ultra | Ultra Pro | 250 GB | 30 days | 10,000 Ks |
 
-### `lib/api-zod` (`@workspace/api-zod`)
+## Payment Methods
 
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
+- KBZ Pay / AYA Pay: 09954901109 (Saw Pyae Sone Oo)
+- Wave Pay / KBZ Pay / AYA Pay: 09965172570 (Hnin Ei Lwin Kyaw)
+- CB Pay: Fn 0027600500030392 (U Saw Pyae Sone Oo)
 
-### `lib/api-client-react` (`@workspace/api-client-react`)
+## Deployment (VPS via Docker Compose)
 
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
+```bash
+docker compose up -d --build
+```
 
-### `artifacts/ryuu-vpn` (`@workspace/ryuu-vpn`)
+The Dockerfile builds: pnpm install → frontend vite build → API esbuild bundle. The API server serves the built frontend as static files in production.
 
-React + Vite frontend for the RYUU VPN shop. Dark cyberpunk-themed.
+## Development
 
-- Full homepage: Navbar, Hero, Stats, Features, Pricing, Testimonials, FAQ, Footer
-- Announcement popup modal (Myanmar/English, session-only)
-- Auth modal: Login + Register tabs (real API calls to api-server)
-- Dashboard page (`/dashboard`): live data usage, plan info, expiry, subscription link
-- Auth state via `AuthContext` + localStorage JWT token
-- API calls proxied through Vite dev server to `api-server` on port 8080
-- Routes: `/` (home), `/dashboard` (protected)
-
-### `artifacts/api-server` (`@workspace/api-server` — updated)
-
-Now includes full auth + Remnawave integration:
-
-- `src/routes/auth.ts` — POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
-- `src/routes/dashboard.ts` — GET /api/dashboard/stats, GET /api/dashboard/subscription
-- `src/lib/remnawave.ts` — Remnawave panel API client (createUser, getUser, bandwidth, subscription)
-- `src/lib/jwt.ts` — JWT sign/verify using SESSION_SECRET
-- `src/lib/plans.ts` — Plan definitions (starter/premium/ultra)
-- `src/middlewares/auth.ts` — Bearer token auth middleware
-- Dev script changed to `tsx watch` for hot reload
-- Required env: `REMNAWAVE_URL` (env var), `REMNAWAVE_API_KEY` (secret), `SESSION_SECRET` (secret), `DATABASE_URL` (secret)
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+```bash
+pnpm install
+pnpm --filter @workspace/db run push          # Sync DB schema
+# Start workflows: "artifacts/api-server: API Server" and "artifacts/ryuu-vpn: web"
+```
