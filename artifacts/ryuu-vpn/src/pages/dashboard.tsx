@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import { api, type DashboardStats, type SubscriptionInfo, type Plan } from "@/lib/api";
-import { LogOut, Copy, Check, Wifi, Shield, Clock, Database, Wallet, ShoppingCart, ArrowUpRight, Gift, X, User } from "lucide-react";
+import { api, type DashboardStats, type SubscriptionInfo, type Plan, type PurchaseStatus, type TopupRequest } from "@/lib/api";
+import { LogOut, Copy, Check, Wifi, Shield, Clock, Database, Wallet, ShoppingCart, ArrowUpRight, Gift, X, User, History, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function StatusBadge({ status }: { status: string }) {
@@ -17,6 +17,19 @@ function StatusBadge({ status }: { status: string }) {
     }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-400" : noplan ? "bg-white/30" : "bg-red-400"}`} />
       {noplan ? "No Active Plan" : status}
+    </span>
+  );
+}
+
+function TopupStatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, string> = {
+    pending: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    approved: "bg-green-500/10 text-green-400 border-green-500/30",
+    rejected: "bg-red-500/10 text-red-400 border-red-500/30",
+  };
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${cfg[status] ?? "bg-white/5 text-white/40 border-white/10"}`}>
+      {status}
     </span>
   );
 }
@@ -63,6 +76,8 @@ const PLAN_LABELS: Record<string, string> = {
   ultra: "ULTRA PRO",
 };
 
+const REFRESH_INTERVAL_MS = 30_000;
+
 export default function DashboardPage() {
   const { user, logout, loading: authLoading, refreshUser } = useAuth();
   const [, navigate] = useLocation();
@@ -70,6 +85,9 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [sub, setSub] = useState<SubscriptionInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [purchaseStatus, setPurchaseStatus] = useState<PurchaseStatus | null>(null);
+  const [myTopups, setMyTopups] = useState<TopupRequest[]>([]);
+  const [topupsOpen, setTopupsOpen] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buyingPlan, setBuyingPlan] = useState<string | null>(null);
@@ -77,22 +95,56 @@ export default function DashboardPage() {
   const [giftUsername, setGiftUsername] = useState("");
   const [giftPlanId, setGiftPlanId] = useState<string | null>(null);
   const [gifting, setGifting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/");
   }, [user, authLoading, navigate]);
 
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!silent) setStatsLoading(true);
+    try {
+      const [s, subData, p, ps, topups] = await Promise.all([
+        api.stats(),
+        api.subscription(),
+        api.plans(),
+        api.purchaseStatus(),
+        api.myTopups(),
+      ]);
+      setStats(s);
+      setSub(subData);
+      setPlans(p);
+      setPurchaseStatus(ps);
+      setMyTopups(topups);
+      setError(null);
+    } catch (e) {
+      if (!silent) setError((e as Error).message);
+    } finally {
+      if (!silent) setStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
-    Promise.all([api.stats(), api.subscription(), api.plans()])
-      .then(([s, sub, p]) => {
-        setStats(s);
-        setSub(sub);
-        setPlans(p);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setStatsLoading(false));
-  }, [user]);
+    loadDashboard();
+  }, [user, loadDashboard]);
+
+  useEffect(() => {
+    if (!user) return;
+    refreshTimerRef.current = setInterval(() => {
+      loadDashboard(true);
+    }, REFRESH_INTERVAL_MS);
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [user, loadDashboard]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboard(true);
+    setRefreshing(false);
+  };
 
   const handleBuyPlan = async (planId: string) => {
     setBuyingPlan(planId);
@@ -100,9 +152,10 @@ export default function DashboardPage() {
       const result = await api.buyPlan(planId);
       toast({ title: "Plan Activated!", description: `${result.planName} is now active.` });
       await refreshUser();
-      const [newStats, newSub] = await Promise.all([api.stats(), api.subscription()]);
+      const [newStats, newSub, ps] = await Promise.all([api.stats(), api.subscription(), api.purchaseStatus()]);
       setStats(newStats);
       setSub(newSub);
+      setPurchaseStatus(ps);
     } catch (err) {
       toast({
         title: "Purchase Failed",
@@ -119,13 +172,14 @@ export default function DashboardPage() {
     setGifting(true);
     try {
       const result = await api.giftPlan(giftUsername.trim(), giftPlanId);
-      toast({ title: "Gift Sent! 🎁", description: `${result.planName} gifted to ${result.recipientUsername}.` });
+      toast({ title: "Gift Sent!", description: `${result.planName} gifted to ${result.recipientUsername}.` });
       setGiftModalOpen(false);
       setGiftUsername("");
       setGiftPlanId(null);
       await refreshUser();
-      const newStats = await api.stats();
+      const [newStats, ps] = await Promise.all([api.stats(), api.purchaseStatus()]);
       setStats(newStats);
+      setPurchaseStatus(ps);
     } catch (err) {
       toast({
         title: "Gift Failed",
@@ -143,6 +197,8 @@ export default function DashboardPage() {
     ? Math.max(0, Math.ceil((new Date(stats.expireAt).getTime() - Date.now()) / 86400000))
     : null;
 
+  const pendingTopup = myTopups.find((t) => t.status === "pending");
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -159,7 +215,15 @@ export default function DashboardPage() {
             <img src="https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/interface-essential/check-badge-89c8o2nllxjypnppfmi9xm.png/check-badge-t05f9l6xba1iwy9pjudt.png?_a=DATAiZAAZAA0" className="w-8 h-8" alt="RYUU VPN" />
             <span className="font-display font-bold text-xl tracking-widest">RYUU <span className="text-primary">VPN</span></span>
           </a>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white/70 transition-all disabled:opacity-40"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
             {user?.isAdmin && (
               <button onClick={() => navigate("/admin")} className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider hover:bg-amber-500/20 transition-all">
                 Admin
@@ -167,7 +231,7 @@ export default function DashboardPage() {
             )}
             <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium text-white/70 hover:text-white transition-all">
               <LogOut className="w-4 h-4" />
-              Log Out
+              <span className="hidden sm:inline">Log Out</span>
             </button>
           </div>
         </div>
@@ -179,7 +243,6 @@ export default function DashboardPage() {
             <p className="text-white/40 text-sm mb-1 font-medium">Welcome back,</p>
             <h1 className="font-display text-3xl font-bold text-white uppercase tracking-wide">{user?.username}</h1>
           </div>
-          {/* Balance Card */}
           <div className="flex items-center gap-3 bg-white/[0.03] border border-white/[0.07] rounded-2xl px-5 py-3">
             <Wallet className="w-5 h-5 text-primary" />
             <div>
@@ -195,6 +258,19 @@ export default function DashboardPage() {
             </button>
           </div>
         </motion.div>
+
+        {pendingTopup && (
+          <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-5 flex items-center gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-400">Top-up pending review</p>
+              <p className="text-xs text-white/40 mt-0.5">
+                {pendingTopup.amountKs.toLocaleString()} Ks via {pendingTopup.paymentMethod.split(" - ")[0]} · Submitted {new Date(pendingTopup.createdAt).toLocaleString("en-US", { timeZone: "Asia/Yangon", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+            <span className="text-xs text-amber-400/60 font-medium">Usually 1–2 hrs</span>
+          </motion.div>
+        )}
 
         {statsLoading ? (
           <div className="flex items-center justify-center py-20">
@@ -260,14 +336,13 @@ export default function DashboardPage() {
                     )}
                     {daysLeft !== null && daysLeft <= 5 && (
                       <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 font-medium">
-                        ⚠️ Your plan expires soon. Buy a new plan to keep your VPN active.
+                        Your plan expires soon. Buy a new plan to keep your VPN active.
                       </div>
                     )}
                   </>
                 )}
               </motion.div>
 
-              {/* Subscription Link */}
               {sub?.subscriptionUrl && (
                 <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
                   className="md:col-span-2 bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">
@@ -283,7 +358,6 @@ export default function DashboardPage() {
                 </motion.div>
               )}
 
-              {/* Usage Details */}
               {stats?.status !== "NO_PLAN" && (
                 <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }}
                   className={`${sub?.subscriptionUrl ? "" : "md:col-span-2"} bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6`}>
@@ -310,7 +384,7 @@ export default function DashboardPage() {
             {/* Buy a Plan */}
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}
               className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="w-4 h-4 text-primary" />
                   <span className="text-xs font-bold uppercase tracking-widest text-white/50">Buy a Plan</span>
@@ -323,39 +397,70 @@ export default function DashboardPage() {
                   Gift a Plan
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {plans.map((plan) => {
-                  const canAfford = (stats?.balanceKs ?? user?.balanceKs ?? 0) >= plan.priceKs;
-                  return (
-                    <div key={plan.id}
-                      className={`border rounded-2xl p-5 transition-all ${
-                        plan.id === "premium"
-                          ? "border-primary/40 bg-primary/5"
-                          : "border-white/10 bg-white/[0.02]"
-                      }`}>
-                      {plan.id === "premium" && (
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Most Popular</div>
-                      )}
-                      <h3 className="font-display font-bold text-white text-sm tracking-widest mb-1">{plan.name}</h3>
-                      <div className="text-2xl font-display font-bold text-white mb-1">{plan.dataGb} GB</div>
-                      <div className="text-xs text-white/40 mb-3">{plan.validityDays} days</div>
-                      <div className="text-lg font-bold text-primary mb-4">{plan.priceKs.toLocaleString()} Ks</div>
-                      <button
-                        onClick={() => handleBuyPlan(plan.id)}
-                        disabled={!canAfford || buyingPlan !== null}
-                        className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                          canAfford
-                            ? "bg-primary text-white hover:shadow-[0_0_20px_-5px_rgba(168,85,247,0.6)] hover:-translate-y-0.5"
-                            : "bg-white/5 text-white/30 cursor-not-allowed"
-                        } disabled:opacity-60 disabled:translate-y-0`}
-                      >
-                        {buyingPlan === plan.id ? "Activating..." : canAfford ? "Buy Now" : "Insufficient Balance"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              {plans.some(p => (stats?.balanceKs ?? user?.balanceKs ?? 0) < p.priceKs) && (
+
+              {purchaseStatus && (
+                <div className="mb-5 flex items-center gap-2">
+                  <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                    purchaseStatus.remainingPurchases === 0
+                      ? "bg-red-500/10 text-red-400 border-red-500/20"
+                      : "bg-white/5 text-white/40 border-white/10"
+                  }`}>
+                    {purchaseStatus.purchasesThisMonth}/{purchaseStatus.monthlyLimit} purchases used this month
+                    {purchaseStatus.remainingPurchases > 0 && (
+                      <span className="text-white/30"> · {purchaseStatus.remainingPurchases} remaining</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {purchaseStatus?.remainingPurchases === 0 ? (
+                <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl text-sm text-red-400 text-center">
+                  You've used all {purchaseStatus.monthlyLimit} plan purchases for this month. Your limit resets on the 1st of next month.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {plans.map((plan) => {
+                    const canAfford = (stats?.balanceKs ?? user?.balanceKs ?? 0) >= plan.priceKs;
+                    const blocked = !purchaseStatus?.canBuyStarter && plan.id === "starter";
+                    const disabled = !canAfford || blocked || buyingPlan !== null;
+                    return (
+                      <div key={plan.id}
+                        className={`border rounded-2xl p-5 transition-all ${
+                          plan.id === "premium"
+                            ? "border-primary/40 bg-primary/5"
+                            : "border-white/10 bg-white/[0.02]"
+                        }`}>
+                        {plan.id === "premium" && (
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Most Popular</div>
+                        )}
+                        <h3 className="font-display font-bold text-white text-sm tracking-widest mb-1">{plan.name}</h3>
+                        <div className="text-2xl font-display font-bold text-white mb-1">{plan.dataGb} GB</div>
+                        <div className="text-xs text-white/40 mb-3">{plan.validityDays} days</div>
+                        <div className="text-lg font-bold text-primary mb-4">{plan.priceKs.toLocaleString()} Ks</div>
+                        <button
+                          onClick={() => handleBuyPlan(plan.id)}
+                          disabled={disabled}
+                          className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                            !disabled
+                              ? "bg-primary text-white hover:shadow-[0_0_20px_-5px_rgba(168,85,247,0.6)] hover:-translate-y-0.5"
+                              : "bg-white/5 text-white/30 cursor-not-allowed"
+                          } disabled:opacity-60 disabled:translate-y-0`}
+                        >
+                          {buyingPlan === plan.id ? "Activating..."
+                            : blocked ? "Plan locked"
+                            : !canAfford ? "Insufficient Balance"
+                            : "Buy Now"}
+                        </button>
+                        {blocked && (
+                          <p className="text-[10px] text-white/25 mt-1.5 text-center">Current plan is Premium or Ultra</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {plans.some(p => (stats?.balanceKs ?? user?.balanceKs ?? 0) < p.priceKs) && purchaseStatus?.remainingPurchases !== 0 && (
                 <p className="text-xs text-white/30 mt-4 text-center">
                   Need more balance?{" "}
                   <button onClick={() => navigate("/topup")} className="text-primary hover:underline font-medium">
@@ -364,6 +469,59 @@ export default function DashboardPage() {
                 </p>
               )}
             </motion.div>
+
+            {/* My Top-Up History */}
+            {myTopups.length > 0 && (
+              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.35 }}
+                className="bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => setTopupsOpen((v) => !v)}
+                  className="w-full flex items-center justify-between p-6 text-left hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-secondary" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-white/50">Top-Up History</span>
+                    {myTopups.filter((t) => t.status === "pending").length > 0 && (
+                      <span className="bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {myTopups.filter((t) => t.status === "pending").length} pending
+                      </span>
+                    )}
+                  </div>
+                  {topupsOpen ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+                </button>
+
+                <AnimatePresence>
+                  {topupsOpen && (
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: "auto" }}
+                      exit={{ height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-6 space-y-2">
+                        {myTopups.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5">
+                            <div>
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-bold text-white text-sm">{t.amountKs.toLocaleString()} Ks</span>
+                                <TopupStatusBadge status={t.status} />
+                              </div>
+                              <div className="text-xs text-white/30">
+                                {t.paymentMethod.split(" - ")[0]} · {new Date(t.createdAt).toLocaleString("en-US", { timeZone: "Asia/Yangon", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                              {t.adminNote && (
+                                <div className="text-xs text-white/40 mt-0.5">Note: {t.adminNote}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
           </div>
         )}
       </div>
@@ -387,7 +545,6 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Recipient */}
             <div className="mb-5">
               <label className="text-xs font-bold uppercase tracking-widest text-white/50 block mb-2">
                 Recipient Username
@@ -404,7 +561,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Plan selector */}
             <div className="mb-6">
               <label className="text-xs font-bold uppercase tracking-widest text-white/50 block mb-2">
                 Choose Plan to Gift
@@ -451,7 +607,7 @@ export default function DashboardPage() {
                 disabled={!giftUsername.trim() || !giftPlanId || gifting}
                 className="flex-1 py-3 rounded-xl bg-pink-500 text-white text-sm font-bold uppercase tracking-wider hover:bg-pink-400 hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:translate-y-0 disabled:cursor-not-allowed shadow-[0_0_20px_-5px_rgba(236,72,153,0.6)]"
               >
-                {gifting ? "Sending..." : "Send Gift 🎁"}
+                {gifting ? "Sending..." : "Send Gift"}
               </button>
             </div>
           </motion.div>

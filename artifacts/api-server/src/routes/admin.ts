@@ -2,8 +2,8 @@ import { Router } from "express";
 import { db, usersTable, topupRequestsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
-import { createRemnawaveUser } from "../lib/remnawave.js";
 import { getPlan, PLANS } from "../lib/plans.js";
+import { sendTelegramMessage } from "../lib/telegram.js";
 
 const router = Router();
 
@@ -13,7 +13,6 @@ router.get("/topups", requireAdmin, async (_req, res) => {
       id: topupRequestsTable.id,
       amountKs: topupRequestsTable.amountKs,
       paymentMethod: topupRequestsTable.paymentMethod,
-      screenshotUrl: topupRequestsTable.screenshotUrl,
       status: topupRequestsTable.status,
       adminNote: topupRequestsTable.adminNote,
       createdAt: topupRequestsTable.createdAt,
@@ -26,6 +25,23 @@ router.get("/topups", requireAdmin, async (_req, res) => {
     .orderBy(desc(topupRequestsTable.createdAt));
 
   res.json(rows);
+});
+
+router.get("/topups/:id/screenshot", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  const [topup] = await db
+    .select({ screenshotUrl: topupRequestsTable.screenshotUrl })
+    .from(topupRequestsTable)
+    .where(eq(topupRequestsTable.id, id))
+    .limit(1);
+
+  if (!topup) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  res.json({ screenshotUrl: topup.screenshotUrl });
 });
 
 router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) => {
@@ -49,11 +65,11 @@ router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) 
 
   await db
     .update(topupRequestsTable)
-    .set({ status: "approved", adminNote: adminNote ?? null, updatedAt: new Date() })
+    .set({ status: "approved", adminNote: adminNote?.trim() || null, updatedAt: new Date() })
     .where(eq(topupRequestsTable.id, id));
 
   const [user] = await db
-    .select({ balanceKs: usersTable.balanceKs })
+    .select({ balanceKs: usersTable.balanceKs, username: usersTable.username })
     .from(usersTable)
     .where(eq(usersTable.id, topup.userId))
     .limit(1);
@@ -64,6 +80,19 @@ router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) 
     .update(usersTable)
     .set({ balanceKs: newBalance, updatedAt: new Date() })
     .where(eq(usersTable.id, topup.userId));
+
+  const notifyText = [
+    `✅ <b>Top-Up Approved</b>`,
+    ``,
+    `👤 User: <b>${user?.username ?? topup.userId}</b>`,
+    `💵 Amount: <b>${topup.amountKs.toLocaleString()} Ks</b>`,
+    `💰 New Balance: <b>${newBalance.toLocaleString()} Ks</b>`,
+    `🏦 Method: <b>${topup.paymentMethod}</b>`,
+    ...(adminNote?.trim() ? [`📝 Note: ${adminNote.trim()}`] : []),
+    `✅ Approved by: <b>${req.user!.username}</b>`,
+  ].join("\n");
+
+  sendTelegramMessage(notifyText).catch(() => {});
 
   res.json({ success: true, newBalance });
 });
@@ -89,8 +118,26 @@ router.post("/topups/:id/reject", requireAdmin, async (req: AdminRequest, res) =
 
   await db
     .update(topupRequestsTable)
-    .set({ status: "rejected", adminNote: adminNote ?? null, updatedAt: new Date() })
+    .set({ status: "rejected", adminNote: adminNote?.trim() || null, updatedAt: new Date() })
     .where(eq(topupRequestsTable.id, id));
+
+  const [user] = await db
+    .select({ username: usersTable.username })
+    .from(usersTable)
+    .where(eq(usersTable.id, topup.userId))
+    .limit(1);
+
+  const notifyText = [
+    `❌ <b>Top-Up Rejected</b>`,
+    ``,
+    `👤 User: <b>${user?.username ?? topup.userId}</b>`,
+    `💵 Amount: <b>${topup.amountKs.toLocaleString()} Ks</b>`,
+    `🏦 Method: <b>${topup.paymentMethod}</b>`,
+    ...(adminNote?.trim() ? [`📝 Reason: ${adminNote.trim()}`] : []),
+    `❌ Rejected by: <b>${req.user!.username}</b>`,
+  ].join("\n");
+
+  sendTelegramMessage(notifyText).catch(() => {});
 
   res.json({ success: true });
 });
@@ -116,6 +163,11 @@ router.post("/users/:id/set-admin", requireAdmin, async (req: AdminRequest, res)
   const { id } = req.params;
   const { isAdmin } = req.body as { isAdmin: boolean };
 
+  if (id === req.user!.userId) {
+    res.status(400).json({ error: "You cannot change your own admin status" });
+    return;
+  }
+
   await db
     .update(usersTable)
     .set({ isAdmin: !!isAdmin, updatedAt: new Date() })
@@ -128,8 +180,13 @@ router.post("/users/:id/set-balance", requireAdmin, async (req: AdminRequest, re
   const { id } = req.params;
   const { balanceKs } = req.body as { balanceKs: number };
 
-  if (typeof balanceKs !== "number" || balanceKs < 0) {
-    res.status(400).json({ error: "Invalid balance" });
+  if (typeof balanceKs !== "number" || balanceKs < 0 || !Number.isInteger(balanceKs)) {
+    res.status(400).json({ error: "Invalid balance — must be a non-negative integer" });
+    return;
+  }
+
+  if (balanceKs > 10_000_000) {
+    res.status(400).json({ error: "Balance too large" });
     return;
   }
 
