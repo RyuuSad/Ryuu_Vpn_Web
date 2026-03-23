@@ -88,6 +88,12 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use("/api", router);
 
+// Serve uploaded screenshots from Docker volume (must be before SPA catch-all)
+const uploadDir = process.env.UPLOAD_DIR
+  ? path.dirname(process.env.UPLOAD_DIR)
+  : "/app/uploads";
+app.use("/uploads", express.static(uploadDir));
+
 // In production, serve the built Vite frontend
 if (process.env.NODE_ENV === "production") {
   const staticDir = path.resolve(__dirname, "../../ryuu-vpn/dist/public");
