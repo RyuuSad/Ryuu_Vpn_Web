@@ -7,48 +7,48 @@ Currently, payment screenshots (up to 10MB) are stored as base64-encoded strings
 - Expensive backups/restores
 - Memory issues when loading large result sets
 
-## Solution: Migrate to Object Storage
+## Solution: Migrate to DigitalOcean Spaces
 
-### Recommended: Cloudflare R2 (Free Tier)
-- **Free**: 10GB storage, 1M Class A operations/month
-- **Fast**: Global CDN
-- **S3-compatible**: Easy migration path
-- **Cost**: $0 for small scale
-
-### Alternative: AWS S3, DigitalOcean Spaces
+### Why DigitalOcean Spaces?
+- **Simple**: Already using DigitalOcean for VPS
+- **S3-compatible**: Uses standard AWS SDK
+- **CDN included**: Free CDN with every Space
+- **Predictable pricing**: $5/month for 250GB storage + 1TB transfer
+- **No egress fees**: Unlike AWS S3
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Add R2 Configuration (No Breaking Changes)
+### Phase 1: Add DigitalOcean Spaces Configuration (No Breaking Changes)
 
 1. **Install AWS SDK**
 ```bash
-pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+pnpm add @aws-sdk/client-s3
 ```
 
 2. **Add Environment Variables** (`.env`)
 ```bash
-# Cloudflare R2 Configuration
-R2_ACCOUNT_ID=your_account_id
-R2_ACCESS_KEY_ID=your_access_key
-R2_SECRET_ACCESS_KEY=your_secret_key
-R2_BUCKET_NAME=ryuu-vpn-screenshots
-R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
+# DigitalOcean Spaces Configuration
+SPACES_REGION=sgp1
+SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
+SPACES_ACCESS_KEY=your_access_key
+SPACES_SECRET_KEY=your_secret_key
+SPACES_BUCKET=ryuu-vpn-screenshots
+SPACES_CDN_URL=https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com
 ```
 
-3. **Create Upload Service** (`artifacts/api-server/src/lib/r2.ts`)
+3. **Create Upload Service** (`artifacts/api-server/src/lib/spaces.ts`)
 ```typescript
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 
 const client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  region: process.env.SPACES_REGION || "sgp1",
+  endpoint: process.env.SPACES_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.SPACES_ACCESS_KEY!,
+    secretAccessKey: process.env.SPACES_SECRET_KEY!,
   },
 });
 
@@ -56,22 +56,25 @@ export async function uploadScreenshot(buffer: Buffer, mimeType: string): Promis
   const key = `screenshots/${Date.now()}-${randomUUID()}.jpg`;
   
   await client.send(new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME!,
+    Bucket: process.env.SPACES_BUCKET!,
     Key: key,
     Body: buffer,
     ContentType: mimeType,
+    ACL: "public-read", // Make publicly accessible
   }));
 
-  return `${process.env.R2_PUBLIC_URL}/${key}`;
+  return `${process.env.SPACES_CDN_URL}/${key}`;
 }
 ```
 
 4. **Update Top-Up Route** (`artifacts/api-server/src/routes/topup.ts`)
 ```typescript
+import { uploadScreenshot } from "../lib/spaces.js";
+
 // OLD (base64):
 const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
-// NEW (R2 URL):
+// NEW (Spaces URL):
 const screenshotUrl = await uploadScreenshot(req.file.buffer, req.file.mimetype);
 ```
 
@@ -80,10 +83,12 @@ const screenshotUrl = await uploadScreenshot(req.file.buffer, req.file.mimetype)
 **Migration Script** (`scripts/migrate-screenshots.ts`):
 ```typescript
 import { db, topupRequestsTable } from "@workspace/db";
-import { uploadScreenshot } from "../artifacts/api-server/src/lib/r2";
+import { eq } from "drizzle-orm";
+import { uploadScreenshot } from "../artifacts/api-server/src/lib/spaces";
 
 async function migrateScreenshots() {
   const topups = await db.select().from(topupRequestsTable);
+  let migrated = 0;
   
   for (const topup of topups) {
     if (topup.screenshotUrl.startsWith("data:")) {
@@ -94,7 +99,7 @@ async function migrateScreenshots() {
       const [, mimeType, base64Data] = matches;
       const buffer = Buffer.from(base64Data, "base64");
       
-      // Upload to R2
+      // Upload to DigitalOcean Spaces
       const newUrl = await uploadScreenshot(buffer, mimeType);
       
       // Update database
@@ -102,10 +107,15 @@ async function migrateScreenshots() {
         .set({ screenshotUrl: newUrl })
         .where(eq(topupRequestsTable.id, topup.id));
       
-      console.log(`Migrated screenshot for topup ${topup.id}`);
+      migrated++;
+      console.log(`[${migrated}] Migrated screenshot for topup ${topup.id}`);
     }
   }
+  
+  console.log(`\nMigration complete! Migrated ${migrated} screenshots.`);
 }
+
+migrateScreenshots().catch(console.error);
 ```
 
 ### Phase 3: Cleanup (After Migration Complete)
@@ -116,21 +126,26 @@ async function migrateScreenshots() {
 
 ---
 
-## Cloudflare R2 Setup Steps
+## DigitalOcean Spaces Setup Steps
 
-1. **Create R2 Bucket**
-   - Go to Cloudflare Dashboard → R2
-   - Create bucket: `ryuu-vpn-screenshots`
-   - Enable public access (or use presigned URLs)
+1. **Create a Space**
+   - Go to DigitalOcean Dashboard → Spaces
+   - Click "Create a Space"
+   - Choose region: **Singapore (sgp1)** (closest to Myanmar)
+   - Name: `ryuu-vpn-screenshots`
+   - Enable CDN (included free)
+   - File Listing: **Private** (only access via direct URLs)
 
-2. **Create API Token**
-   - R2 → Manage R2 API Tokens
-   - Create token with "Object Read & Write" permissions
-   - Save Access Key ID and Secret Access Key
+2. **Create API Keys**
+   - Spaces → Manage Keys (or API → Spaces Keys)
+   - Click "Generate New Key"
+   - Name: `ryuu-vpn-api`
+   - Save the **Access Key** and **Secret Key** (shown only once!)
 
-3. **Get Public URL**
-   - Bucket Settings → Public Access
-   - Copy the public URL (e.g., `https://pub-xxxxx.r2.dev`)
+3. **Get CDN URL**
+   - After creating Space, go to Settings
+   - Copy the **CDN Endpoint**: `https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com`
+   - This is your `SPACES_CDN_URL`
 
 ---
 
@@ -161,29 +176,59 @@ If migration fails:
 
 ## Cost Estimate
 
-**Cloudflare R2 Free Tier**:
-- 10GB storage (enough for ~10,000 screenshots)
-- 1M Class A operations/month (uploads)
-- 10M Class B operations/month (downloads)
-- Free egress (no bandwidth charges)
+**DigitalOcean Spaces Pricing**:
+- **$5/month flat rate** includes:
+  - 250GB storage (enough for ~250,000 screenshots)
+  - 1TB outbound transfer (CDN bandwidth)
+  - Unlimited inbound transfer
+  - Free CDN included
 
-**If you exceed free tier**:
-- Storage: $0.015/GB/month
-- Class A operations: $4.50/million
-- Class B operations: $0.36/million
+**Overage charges** (only if you exceed):
+- Additional storage: $0.02/GB/month
+- Additional transfer: $0.01/GB
 
-**Example**: 50,000 screenshots/month = ~$5/month (still cheaper than database costs)
+**Example for your scale**:
+- 1,000 screenshots/month (~1GB) = **$5/month total**
+- 10,000 screenshots/month (~10GB) = **$5/month total**
+- Even at 100,000 screenshots (~100GB), still **$5/month**
+
+**Much simpler than AWS S3** (no per-request charges, no egress fees)
 
 ---
 
 ## Next Steps
 
-1. Create Cloudflare R2 account
-2. Set up bucket and get credentials
-3. Test upload with one screenshot
-4. Deploy new code (backward compatible)
-5. Run migration script
-6. Monitor for errors
-7. Clean up old data
+1. **Create DigitalOcean Space** (5 minutes)
+   - Region: Singapore (sgp1)
+   - Name: ryuu-vpn-screenshots
+   - Enable CDN
 
-**Status**: Ready to implement when you have R2 credentials
+2. **Generate API Keys** (2 minutes)
+   - Save Access Key and Secret Key
+
+3. **Add to `.env` on VPS**
+```bash
+SPACES_REGION=sgp1
+SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
+SPACES_ACCESS_KEY=your_access_key_here
+SPACES_SECRET_KEY=your_secret_key_here
+SPACES_BUCKET=ryuu-vpn-screenshots
+SPACES_CDN_URL=https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com
+```
+
+4. **Install AWS SDK**
+```bash
+pnpm add @aws-sdk/client-s3
+```
+
+5. **Create upload service** (copy code from Phase 1 above)
+
+6. **Test with one screenshot** before full migration
+
+7. **Run migration script** to move existing screenshots
+
+8. **Monitor and verify** all screenshots load correctly
+
+9. **Clean up database** after successful migration
+
+**Status**: Ready to implement - much simpler than Cloudflare R2!
