@@ -4,6 +4,7 @@ import { db, usersTable, topupRequestsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { sendTelegramPhoto, sendTelegramMessage } from "../lib/telegram.js";
+import { saveScreenshot } from "../lib/upload.js";
 
 const router = Router();
 const upload = multer({
@@ -42,7 +43,8 @@ router.post(
       return;
     }
 
-    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    // Save screenshot to local filesystem
+    const screenshotUrl = await saveScreenshot(req.file.buffer, req.file.mimetype);
 
     const [topup] = await db
       .insert(topupRequestsTable)
@@ -50,7 +52,7 @@ router.post(
         userId: req.user!.userId,
         amountKs: amount,
         paymentMethod,
-        screenshotUrl: base64Image,
+        screenshotUrl,
         status: "pending",
       })
       .returning();
