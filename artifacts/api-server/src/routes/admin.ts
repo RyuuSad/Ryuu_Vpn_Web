@@ -92,7 +92,9 @@ router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) 
     `✅ Approved by: <b>${req.user!.username}</b>`,
   ].join("\n");
 
-  sendTelegramMessage(notifyText).catch(() => {});
+  sendTelegramMessage(notifyText).catch((err) => {
+    req.log.warn({ err }, "Failed to send Telegram notification for top-up approval");
+  });
 
   res.json({ success: true, newBalance });
 });
@@ -137,7 +139,9 @@ router.post("/topups/:id/reject", requireAdmin, async (req: AdminRequest, res) =
     `❌ Rejected by: <b>${req.user!.username}</b>`,
   ].join("\n");
 
-  sendTelegramMessage(notifyText).catch(() => {});
+  sendTelegramMessage(notifyText).catch((err) => {
+    req.log.warn({ err }, "Failed to send Telegram notification for top-up rejection");
+  });
 
   res.json({ success: true });
 });

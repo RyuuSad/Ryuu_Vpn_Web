@@ -41,8 +41,8 @@ export async function sendTelegramPhoto(
         method: "POST",
         body: form,
       });
-    } catch {
-      // Ignore per-chat errors
+    } catch (err) {
+      logger.warn({ err, chatId }, "Failed to send Telegram photo");
     }
   }
 }

@@ -41,6 +41,16 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    name: "002_add_indexes",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_topup_requests_user_id ON topup_requests(user_id);
+      CREATE INDEX IF NOT EXISTS idx_topup_requests_status ON topup_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_topup_requests_created_at ON topup_requests(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_plan_purchases_user_id ON plan_purchases(user_id);
+      CREATE INDEX IF NOT EXISTS idx_plan_purchases_purchased_at ON plan_purchases(purchased_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations() {

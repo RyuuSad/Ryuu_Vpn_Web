@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, usersTable, planPurchasesTable } from "@workspace/db";
-import { eq, and, gte, count } from "drizzle-orm";
+import { db, usersTable, planPurchasesTable, pool } from "@workspace/db";
+import { eq, and, gte, count, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import {
   getRemnawaveUser,
@@ -140,114 +140,119 @@ router.post("/buy-plan", requireAuth, async (req: AuthRequest, res) => {
     return;
   }
 
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, req.user!.userId))
-    .limit(1);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  // Rule 1 — max 2 purchases per calendar month
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [{ purchasesThisMonth }] = await db
-    .select({ purchasesThisMonth: count() })
-    .from(planPurchasesTable)
-    .where(
-      and(
-        eq(planPurchasesTable.userId, user.id),
-        gte(planPurchasesTable.purchasedAt, monthStart),
-      ),
+    // Lock the user row to prevent concurrent balance modifications
+    const userResult = await client.query(
+      "SELECT * FROM users WHERE id = $1 FOR UPDATE",
+      [req.user!.userId],
     );
 
-  if (Number(purchasesThisMonth) >= MONTHLY_PURCHASE_LIMIT) {
-    res.status(403).json({
-      error: `You've already purchased ${MONTHLY_PURCHASE_LIMIT} plans this month. Your limit resets on the 1st of next month.`,
-      code: "MONTHLY_LIMIT_REACHED",
-    });
-    return;
-  }
-
-  // Rule 2 — no downgrade: Premium/Ultra users cannot buy Starter
-  if (PREMIUM_PLAN_IDS.includes(user.planId ?? "") && planId === "starter") {
-    res.status(403).json({
-      error: "Your current plan is Premium or Ultra. You cannot downgrade to Starter. Please choose Premium or Ultra.",
-      code: "DOWNGRADE_BLOCKED",
-    });
-    return;
-  }
-
-  // Rule 3 — sufficient balance
-  if (user.balanceKs < plan.priceKs) {
-    res.status(402).json({
-      error: `Insufficient balance. You need ${plan.priceKs.toLocaleString()} Ks but have ${user.balanceKs.toLocaleString()} Ks.`,
-      code: "INSUFFICIENT_BALANCE",
-    });
-    return;
-  }
-
-  let remnawaveUuid = user.remnawaveUuid;
-  let remnawaveShortUuid = user.remnawaveShortUuid;
-
-  try {
-    if (user.remnawaveUuid) {
-      // Existing user: extend their data (no traffic reset, carry forward)
-      await renewRemnawaveUserPlan(
-        user.remnawaveUuid,
-        plan.trafficLimitBytes,
-        plan.validityDays,
-      );
-    } else {
-      // New user: create fresh Remnawave account
-      const rwUser = await createRemnawaveUser(
-        user.username,
-        plan.trafficLimitBytes,
-        plan.validityDays,
-      );
-      remnawaveUuid = rwUser.uuid ?? remnawaveUuid;
-      remnawaveShortUuid = rwUser.shortUuid ?? remnawaveShortUuid;
+    if (userResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "User not found" });
+      return;
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    res.status(502).json({ error: `Failed to activate VPN: ${msg}` });
-    return;
-  }
 
-  const newBalance = user.balanceKs - plan.priceKs;
+    const user = userResult.rows[0];
 
-  // Record the purchase and update user in parallel
-  await Promise.all([
-    db.insert(planPurchasesTable).values({
-      userId: user.id,
+    // Rule 1 — max 2 purchases per calendar month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const purchaseCountResult = await client.query(
+      "SELECT COUNT(*) as count FROM plan_purchases WHERE user_id = $1 AND purchased_at >= $2",
+      [user.id, monthStart],
+    );
+    const purchasesThisMonth = Number(purchaseCountResult.rows[0].count);
+
+    if (purchasesThisMonth >= MONTHLY_PURCHASE_LIMIT) {
+      await client.query("ROLLBACK");
+      res.status(403).json({
+        error: `You've already purchased ${MONTHLY_PURCHASE_LIMIT} plans this month. Your limit resets on the 1st of next month.`,
+        code: "MONTHLY_LIMIT_REACHED",
+      });
+      return;
+    }
+
+    // Rule 2 — no downgrade: Premium/Ultra users cannot buy Starter
+    if (PREMIUM_PLAN_IDS.includes(user.plan_id ?? "") && planId === "starter") {
+      await client.query("ROLLBACK");
+      res.status(403).json({
+        error: "Your current plan is Premium or Ultra. You cannot downgrade to Starter. Please choose Premium or Ultra.",
+        code: "DOWNGRADE_BLOCKED",
+      });
+      return;
+    }
+
+    // Rule 3 — sufficient balance (checked within transaction)
+    if (user.balance_ks < plan.priceKs) {
+      await client.query("ROLLBACK");
+      res.status(402).json({
+        error: `Insufficient balance. You need ${plan.priceKs.toLocaleString()} Ks but have ${user.balance_ks.toLocaleString()} Ks.`,
+        code: "INSUFFICIENT_BALANCE",
+      });
+      return;
+    }
+
+    let remnawaveUuid = user.remnawave_uuid;
+    let remnawaveShortUuid = user.remnawave_short_uuid;
+
+    try {
+      if (user.remnawave_uuid) {
+        await renewRemnawaveUserPlan(
+          user.remnawave_uuid,
+          plan.trafficLimitBytes,
+          plan.validityDays,
+        );
+      } else {
+        const rwUser = await createRemnawaveUser(
+          user.username,
+          plan.trafficLimitBytes,
+          plan.validityDays,
+        );
+        remnawaveUuid = rwUser.uuid ?? remnawaveUuid;
+        remnawaveShortUuid = rwUser.shortUuid ?? remnawaveShortUuid;
+      }
+    } catch (err) {
+      await client.query("ROLLBACK");
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: `Failed to activate VPN: ${msg}` });
+      return;
+    }
+
+    const newBalance = user.balance_ks - plan.priceKs;
+
+    // Record purchase and update balance atomically
+    await client.query(
+      "INSERT INTO plan_purchases (user_id, plan_id, price_ks) VALUES ($1, $2, $3)",
+      [user.id, planId, String(plan.priceKs)],
+    );
+
+    await client.query(
+      "UPDATE users SET balance_ks = $1, plan_id = $2, remnawave_uuid = $3, remnawave_short_uuid = $4, updated_at = NOW() WHERE id = $5",
+      [newBalance, planId, remnawaveUuid, remnawaveShortUuid, user.id],
+    );
+
+    await client.query("COMMIT");
+
+    const purchasesAfter = purchasesThisMonth + 1;
+
+    res.json({
+      success: true,
+      newBalance,
       planId,
-      priceKs: String(plan.priceKs),
-    }),
-    db
-      .update(usersTable)
-      .set({
-        balanceKs: newBalance,
-        planId,
-        remnawaveUuid,
-        remnawaveShortUuid,
-        updatedAt: new Date(),
-      })
-      .where(eq(usersTable.id, user.id)),
-  ]);
-
-  const purchasesAfter = Number(purchasesThisMonth) + 1;
-
-  res.json({
-    success: true,
-    newBalance,
-    planId,
-    planName: plan.name,
-    purchasesThisMonth: purchasesAfter,
-    remainingPurchases: Math.max(0, MONTHLY_PURCHASE_LIMIT - purchasesAfter),
-  });
+      planName: plan.name,
+      purchasesThisMonth: purchasesAfter,
+      remainingPurchases: Math.max(0, MONTHLY_PURCHASE_LIMIT - purchasesAfter),
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 router.post("/gift-plan", requireAuth, async (req: AuthRequest, res) => {
