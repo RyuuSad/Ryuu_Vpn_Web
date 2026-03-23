@@ -7,7 +7,11 @@ import { sendTelegramMessage } from "../lib/telegram.js";
 
 const router = Router();
 
-router.get("/topups", requireAdmin, async (_req, res) => {
+router.get("/topups", requireAdmin, async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const offset = (page - 1) * limit;
+
   const rows = await db
     .select({
       id: topupRequestsTable.id,
@@ -22,9 +26,18 @@ router.get("/topups", requireAdmin, async (_req, res) => {
     })
     .from(topupRequestsTable)
     .leftJoin(usersTable, eq(topupRequestsTable.userId, usersTable.id))
-    .orderBy(desc(topupRequestsTable.createdAt));
+    .orderBy(desc(topupRequestsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  res.json(rows);
+  res.json({
+    data: rows,
+    pagination: {
+      page,
+      limit,
+      hasMore: rows.length === limit,
+    },
+  });
 });
 
 router.get("/topups/:id/screenshot", requireAdmin, async (req, res) => {
@@ -146,7 +159,11 @@ router.post("/topups/:id/reject", requireAdmin, async (req: AdminRequest, res) =
   res.json({ success: true });
 });
 
-router.get("/users", requireAdmin, async (_req, res) => {
+router.get("/users", requireAdmin, async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const offset = (page - 1) * limit;
+
   const rows = await db
     .select({
       id: usersTable.id,
@@ -158,9 +175,18 @@ router.get("/users", requireAdmin, async (_req, res) => {
       createdAt: usersTable.createdAt,
     })
     .from(usersTable)
-    .orderBy(desc(usersTable.createdAt));
+    .orderBy(desc(usersTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  res.json(rows);
+  res.json({
+    data: rows,
+    pagination: {
+      page,
+      limit,
+      hasMore: rows.length === limit,
+    },
+  });
 });
 
 router.post("/users/:id/set-admin", requireAdmin, async (req: AdminRequest, res) => {
