@@ -7,145 +7,182 @@ Currently, payment screenshots (up to 10MB) are stored as base64-encoded strings
 - Expensive backups/restores
 - Memory issues when loading large result sets
 
-## Solution: Migrate to DigitalOcean Spaces
+## Solution: Store Screenshots on VPS Filesystem
 
-### Why DigitalOcean Spaces?
-- **Simple**: Already using DigitalOcean for VPS
-- **S3-compatible**: Uses standard AWS SDK
-- **CDN included**: Free CDN with every Space
-- **Predictable pricing**: $5/month for 250GB storage + 1TB transfer
-- **No egress fees**: Unlike AWS S3
+### Why Local Storage?
+- **Zero cost**: Use existing VPS disk space
+- **Simple**: No external services, no API keys, no extra setup
+- **Fast**: Direct filesystem access
+- **Already have it**: Your droplet has plenty of storage
+- **Nginx serves it**: Static files served efficiently by nginx
 
 ---
 
-## Implementation Plan
+## Implementation (Super Simple!)
 
-### Phase 1: Add DigitalOcean Spaces Configuration (No Breaking Changes)
+### Step 1: Create Upload Directory
 
-1. **Install AWS SDK**
+On your VPS:
 ```bash
-pnpm add @aws-sdk/client-s3
+mkdir -p /var/www/ryuu-vpn/uploads/screenshots
+chown -R node:node /var/www/ryuu-vpn/uploads
+chmod 755 /var/www/ryuu-vpn/uploads
 ```
 
-2. **Add Environment Variables** (`.env`)
-```bash
-# DigitalOcean Spaces Configuration
-SPACES_REGION=sgp1
-SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
-SPACES_ACCESS_KEY=your_access_key
-SPACES_SECRET_KEY=your_secret_key
-SPACES_BUCKET=ryuu-vpn-screenshots
-SPACES_CDN_URL=https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com
-```
+### Step 2: Update Nginx to Serve Screenshots
 
-3. **Create Upload Service** (`artifacts/api-server/src/lib/spaces.ts`)
-```typescript
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { randomUUID } from "crypto";
+Add to your nginx config (`/etc/nginx/sites-available/ryuukakkoii.site`):
+```nginx
+server {
+    listen 80;
+    server_name ryuukakkoii.site;
 
-const client = new S3Client({
-  region: process.env.SPACES_REGION || "sgp1",
-  endpoint: process.env.SPACES_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.SPACES_ACCESS_KEY!,
-    secretAccessKey: process.env.SPACES_SECRET_KEY!,
-  },
-});
+    # Serve screenshots directly
+    location /uploads/ {
+        alias /var/www/ryuu-vpn/uploads/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
 
-export async function uploadScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
-  const key = `screenshots/${Date.now()}-${randomUUID()}.jpg`;
-  
-  await client.send(new PutObjectCommand({
-    Bucket: process.env.SPACES_BUCKET!,
-    Key: key,
-    Body: buffer,
-    ContentType: mimeType,
-    ACL: "public-read", // Make publicly accessible
-  }));
-
-  return `${process.env.SPACES_CDN_URL}/${key}`;
+    # Proxy API requests to Node.js
+    location /api/ {
+        proxy_pass http://localhost:8080;
+        # ... rest of your proxy config
+    }
 }
 ```
 
-4. **Update Top-Up Route** (`artifacts/api-server/src/routes/topup.ts`)
-```typescript
-import { uploadScreenshot } from "../lib/spaces.js";
-
-// OLD (base64):
-const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
-// NEW (Spaces URL):
-const screenshotUrl = await uploadScreenshot(req.file.buffer, req.file.mimetype);
+Reload nginx:
+```bash
+nginx -t
+systemctl reload nginx
 ```
 
-### Phase 2: Migrate Existing Screenshots
+### Step 3: Create Upload Service
 
-**Migration Script** (`scripts/migrate-screenshots.ts`):
+**File**: `artifacts/api-server/src/lib/upload.ts`
+```typescript
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { randomUUID } from "crypto";
+
+const UPLOAD_DIR = process.env.UPLOAD_DIR || "/var/www/ryuu-vpn/uploads/screenshots";
+const PUBLIC_URL = process.env.PUBLIC_URL || "https://ryuukakkoii.site";
+
+export async function saveScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
+  // Ensure directory exists
+  await mkdir(UPLOAD_DIR, { recursive: true });
+
+  // Generate unique filename
+  const ext = mimeType.split("/")[1] || "jpg";
+  const filename = `${Date.now()}-${randomUUID()}.${ext}`;
+  const filepath = join(UPLOAD_DIR, filename);
+
+  // Save file
+  await writeFile(filepath, buffer);
+
+  // Return public URL
+  return `${PUBLIC_URL}/uploads/screenshots/${filename}`;
+}
+```
+
+### Step 4: Update Top-Up Route
+
+**File**: `artifacts/api-server/src/routes/topup.ts`
+
+```typescript
+import { saveScreenshot } from "../lib/upload.js";
+
+// Change this line:
+// const screenshotUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+// To this:
+const screenshotUrl = await saveScreenshot(req.file.buffer, req.file.mimetype);
+```
+
+### Step 5: Add Environment Variable (Optional)
+
+In `.env`:
+```bash
+UPLOAD_DIR=/var/www/ryuu-vpn/uploads/screenshots
+PUBLIC_URL=https://ryuukakkoii.site
+```
+
+---
+
+## Migration Script (Move Existing Screenshots)
+
+**File**: `scripts/migrate-screenshots.ts`
+
 ```typescript
 import { db, topupRequestsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { uploadScreenshot } from "../artifacts/api-server/src/lib/spaces";
+import { saveScreenshot } from "../artifacts/api-server/src/lib/upload";
 
 async function migrateScreenshots() {
   const topups = await db.select().from(topupRequestsTable);
   let migrated = 0;
-  
+
   for (const topup of topups) {
     if (topup.screenshotUrl.startsWith("data:")) {
-      // Extract base64 data
-      const matches = topup.screenshotUrl.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) continue;
-      
-      const [, mimeType, base64Data] = matches;
-      const buffer = Buffer.from(base64Data, "base64");
-      
-      // Upload to DigitalOcean Spaces
-      const newUrl = await uploadScreenshot(buffer, mimeType);
-      
-      // Update database
-      await db.update(topupRequestsTable)
-        .set({ screenshotUrl: newUrl })
-        .where(eq(topupRequestsTable.id, topup.id));
-      
-      migrated++;
-      console.log(`[${migrated}] Migrated screenshot for topup ${topup.id}`);
+      try {
+        // Extract base64 data
+        const matches = topup.screenshotUrl.match(/^data:(.+);base64,(.+)$/);
+        if (!matches) continue;
+
+        const [, mimeType, base64Data] = matches;
+        const buffer = Buffer.from(base64Data, "base64");
+
+        // Save to filesystem
+        const newUrl = await saveScreenshot(buffer, mimeType);
+
+        // Update database
+        await db.update(topupRequestsTable)
+          .set({ screenshotUrl: newUrl })
+          .where(eq(topupRequestsTable.id, topup.id));
+
+        migrated++;
+        console.log(`[${migrated}] Migrated screenshot for topup ${topup.id}`);
+      } catch (err) {
+        console.error(`Failed to migrate topup ${topup.id}:`, err);
+      }
     }
   }
-  
+
   console.log(`\nMigration complete! Migrated ${migrated} screenshots.`);
 }
 
 migrateScreenshots().catch(console.error);
 ```
 
-### Phase 3: Cleanup (After Migration Complete)
-
-1. Run `VACUUM FULL` on PostgreSQL to reclaim space
-2. Remove base64 handling code
-3. Update screenshot endpoint to redirect to R2 URLs
+Run it:
+```bash
+pnpm tsx scripts/migrate-screenshots.ts
+```
 
 ---
 
-## DigitalOcean Spaces Setup Steps
+## Cleanup After Migration
 
-1. **Create a Space**
-   - Go to DigitalOcean Dashboard → Spaces
-   - Click "Create a Space"
-   - Choose region: **Singapore (sgp1)** (closest to Myanmar)
-   - Name: `ryuu-vpn-screenshots`
-   - Enable CDN (included free)
-   - File Listing: **Private** (only access via direct URLs)
+Once all screenshots are migrated and verified:
 
-2. **Create API Keys**
-   - Spaces → Manage Keys (or API → Spaces Keys)
-   - Click "Generate New Key"
-   - Name: `ryuu-vpn-api`
-   - Save the **Access Key** and **Secret Key** (shown only once!)
+```sql
+-- Reclaim database space
+VACUUM FULL topup_requests;
+```
 
-3. **Get CDN URL**
-   - After creating Space, go to Settings
-   - Copy the **CDN Endpoint**: `https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com`
-   - This is your `SPACES_CDN_URL`
+---
+
+## Backup Strategy
+
+Add screenshots to your backup script:
+```bash
+# Backup database
+pg_dump ryuuvpn > backup.sql
+
+# Backup screenshots
+tar -czf screenshots-backup.tar.gz /var/www/ryuu-vpn/uploads/screenshots
+```
 
 ---
 
@@ -159,76 +196,35 @@ migrateScreenshots().catch(console.error);
 ### After Migration
 - Database size: ~50MB (90% reduction)
 - Query time: 100-200ms (20x faster)
-- Backup time: 1 minute
-- Screenshot loading: Direct from CDN (faster for users)
+- Backup time: 1 minute (DB) + 30 seconds (files)
+- Screenshot loading: Served by nginx (very fast)
+
+---
+
+## Cost
+
+**$0** - Uses your existing VPS storage
+
+Your droplet probably has 25GB-50GB+ disk space. Even 10,000 screenshots (~10GB) is fine.
 
 ---
 
 ## Rollback Plan
 
-If migration fails:
-1. Keep old base64 data in database during migration
-2. Add new column `screenshot_r2_url` instead of replacing
-3. Fall back to base64 if R2 URL is null
-4. Only delete base64 data after confirming R2 works
+If something goes wrong:
+1. Old base64 data still in database (don't delete until verified)
+2. Just revert the code changes
+3. Screenshots on filesystem are harmless (can delete later)
 
 ---
 
-## Cost Estimate
+## Summary
 
-**DigitalOcean Spaces Pricing**:
-- **$5/month flat rate** includes:
-  - 250GB storage (enough for ~250,000 screenshots)
-  - 1TB outbound transfer (CDN bandwidth)
-  - Unlimited inbound transfer
-  - Free CDN included
+**Total setup time**: ~15 minutes
+1. Create upload directory (2 min)
+2. Update nginx config (5 min)
+3. Add upload service code (5 min)
+4. Update topup route (1 min)
+5. Test with one screenshot (2 min)
 
-**Overage charges** (only if you exceed):
-- Additional storage: $0.02/GB/month
-- Additional transfer: $0.01/GB
-
-**Example for your scale**:
-- 1,000 screenshots/month (~1GB) = **$5/month total**
-- 10,000 screenshots/month (~10GB) = **$5/month total**
-- Even at 100,000 screenshots (~100GB), still **$5/month**
-
-**Much simpler than AWS S3** (no per-request charges, no egress fees)
-
----
-
-## Next Steps
-
-1. **Create DigitalOcean Space** (5 minutes)
-   - Region: Singapore (sgp1)
-   - Name: ryuu-vpn-screenshots
-   - Enable CDN
-
-2. **Generate API Keys** (2 minutes)
-   - Save Access Key and Secret Key
-
-3. **Add to `.env` on VPS**
-```bash
-SPACES_REGION=sgp1
-SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
-SPACES_ACCESS_KEY=your_access_key_here
-SPACES_SECRET_KEY=your_secret_key_here
-SPACES_BUCKET=ryuu-vpn-screenshots
-SPACES_CDN_URL=https://ryuu-vpn-screenshots.sgp1.cdn.digitaloceanspaces.com
-```
-
-4. **Install AWS SDK**
-```bash
-pnpm add @aws-sdk/client-s3
-```
-
-5. **Create upload service** (copy code from Phase 1 above)
-
-6. **Test with one screenshot** before full migration
-
-7. **Run migration script** to move existing screenshots
-
-8. **Monitor and verify** all screenshots load correctly
-
-9. **Clean up database** after successful migration
-
-**Status**: Ready to implement - much simpler than Cloudflare R2!
+**No external services. No API keys. No monthly fees. Just works.**
