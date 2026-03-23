@@ -51,6 +51,13 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_plan_purchases_purchased_at ON plan_purchases(purchased_at DESC);
     `,
   },
+  {
+    name: "003_add_telegram_id",
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id TEXT;
+      CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+    `,
+  },
 ];
 
 export async function runMigrations() {

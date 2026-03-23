@@ -11,6 +11,7 @@ export const usersTable = pgTable("users", {
   planId: text("plan_id"),
   balanceKs: integer("balance_ks").notNull().default(0),
   isAdmin: boolean("is_admin").notNull().default(false),
+  telegramId: text("telegram_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
