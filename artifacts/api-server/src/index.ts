@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { runMigrations } from "./lib/migrate.js";
 import { seedAdminUsers } from "./lib/seed.js";
 import { registerMiniAppWebhook } from "./lib/telegram.js";
+import { startScheduler } from "./lib/scheduler.js";
 
 const rawPort = process.env["PORT"];
 
@@ -53,4 +54,7 @@ app.listen(port, async (err) => {
   registerMiniAppWebhook().catch((e) =>
     logger.warn({ err: e }, "Mini App bot webhook registration failed (non-fatal)"),
   );
+
+  // Start cron scheduler for automated tasks
+  startScheduler();
 });
