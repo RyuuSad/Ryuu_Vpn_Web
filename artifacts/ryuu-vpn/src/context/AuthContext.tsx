@@ -13,38 +13,67 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Storage helper that uses Telegram CloudStorage if available, falls back to localStorage
+// Storage helper that uses BOTH localStorage and Telegram CloudStorage
+// localStorage works everywhere, CloudStorage persists in Telegram Mini App
 const storage = {
   async getItem(key: string): Promise<string | null> {
+    // Try localStorage first (works in all environments)
+    const localValue = localStorage.getItem(key);
+    if (localValue) {
+      console.log('[Storage] Found token in localStorage');
+      return localValue;
+    }
+
+    // If in Telegram, also try CloudStorage
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
+      console.log('[Storage] Checking Telegram CloudStorage');
       return new Promise((resolve) => {
         tg.CloudStorage.getItem(key, (_err: any, value: string | null) => {
+          if (value) {
+            console.log('[Storage] Found token in CloudStorage, syncing to localStorage');
+            localStorage.setItem(key, value);
+          }
           resolve(value || null);
         });
       });
     }
-    return localStorage.getItem(key);
+    
+    return null;
   },
   
   async setItem(key: string, value: string): Promise<void> {
+    // Always save to localStorage
+    localStorage.setItem(key, value);
+    console.log('[Storage] Saved to localStorage');
+    
+    // Also save to CloudStorage if in Telegram
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
+      console.log('[Storage] Also saving to Telegram CloudStorage');
       return new Promise((resolve) => {
-        tg.CloudStorage.setItem(key, value, () => resolve());
+        tg.CloudStorage.setItem(key, value, () => {
+          console.log('[Storage] Saved to CloudStorage');
+          resolve();
+        });
       });
     }
-    localStorage.setItem(key, value);
   },
   
   async removeItem(key: string): Promise<void> {
+    // Remove from both
+    localStorage.removeItem(key);
+    console.log('[Storage] Removed from localStorage');
+    
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
       return new Promise((resolve) => {
-        tg.CloudStorage.removeItem(key, () => resolve());
+        tg.CloudStorage.removeItem(key, () => {
+          console.log('[Storage] Removed from CloudStorage');
+          resolve();
+        });
       });
     }
-    localStorage.removeItem(key);
   },
 };
 
