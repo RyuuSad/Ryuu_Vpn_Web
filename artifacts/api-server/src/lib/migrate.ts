@@ -58,6 +58,22 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
     `,
   },
+  {
+    name: "004_add_announcements",
+    sql: `
+      CREATE TABLE IF NOT EXISTS announcements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_announcements_is_active ON announcements(is_active);
+      CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations() {

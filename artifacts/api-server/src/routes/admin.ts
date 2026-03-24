@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, topupRequestsTable, planPurchasesTable } from "@workspace/db";
+import { db, pool, usersTable, topupRequestsTable, planPurchasesTable } from "@workspace/db";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
@@ -414,6 +414,68 @@ router.delete("/users/:id", requireAdmin, async (req: AdminRequest, res) => {
 
 router.get("/plans", requireAdmin, (_req, res) => {
   res.json(Object.values(PLANS));
+});
+
+// Announcement management endpoints
+router.get("/announcements", requireAdmin, async (_req, res) => {
+  const result = await pool.query(
+    "SELECT * FROM announcements ORDER BY created_at DESC"
+  );
+  res.json(result.rows);
+});
+
+router.get("/announcements/active", async (_req, res) => {
+  const result = await pool.query(
+    "SELECT * FROM announcements WHERE is_active = true ORDER BY created_at DESC LIMIT 1"
+  );
+  res.json(result.rows[0] || null);
+});
+
+router.post("/announcements", requireAdmin, async (req: AdminRequest, res) => {
+  const { title, message } = req.body;
+  
+  if (!title || !message) {
+    res.status(400).json({ error: "Title and message are required" });
+    return;
+  }
+  
+  // Deactivate all previous announcements
+  await pool.query("UPDATE announcements SET is_active = false WHERE is_active = true");
+  
+  // Create new announcement
+  const result = await pool.query(
+    "INSERT INTO announcements (title, message, is_active) VALUES ($1, $2, true) RETURNING *",
+    [title.trim(), message.trim()]
+  );
+  const announcement = result.rows[0];
+  
+  // Send to all linked Telegram users
+  const linkedUsersResult = await pool.query(
+    "SELECT telegram_id, username FROM users WHERE telegram_id IS NOT NULL AND telegram_id != ''"
+  );
+  
+  const announcementText = [
+    `📢 <b>${title}</b>`,
+    ``,
+    message,
+  ].join("\n");
+  
+  // Send to all linked users (fire and forget)
+  for (const user of linkedUsersResult.rows) {
+    if (user.telegram_id) {
+      sendTelegramMessage(user.telegram_id, announcementText).catch(() => {});
+    }
+  }
+  
+  res.json({ success: true, announcement, sentTo: linkedUsersResult.rows.length });
+});
+
+router.delete("/announcements/:id", requireAdmin, async (req: AdminRequest, res) => {
+  const { id } = req.params;
+  
+  await pool.query("DELETE FROM announcements WHERE id = $1", [id]);
+  
+  res.json({ success: true });
 });
 
 export default router;

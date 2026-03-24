@@ -2,6 +2,7 @@ import { Router } from "express";
 import { sendMiniAppBotMessage } from "../lib/telegram.js";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { PLANS } from "../lib/plans.js";
 
 const router = Router();
 
@@ -121,11 +122,69 @@ router.post("/webhook", async (req, res) => {
         ],
       ],
     });
+  } else if (text === "/plans") {
+    const plansText = [
+      `📦 <b>RYUU VPN Plans</b>`,
+      ``,
+      `<b>🌟 STARTER PLAN</b>`,
+      `• Data: ${PLANS.starter.dataGb} GB`,
+      `• Validity: ${PLANS.starter.validityDays} days`,
+      `• Price: ${PLANS.starter.priceKs.toLocaleString()} Ks`,
+      ``,
+      `<b>💎 PREMIUM VALUE</b>`,
+      `• Data: ${PLANS.premium.dataGb} GB`,
+      `• Validity: ${PLANS.premium.validityDays} days`,
+      `• Price: ${PLANS.premium.priceKs.toLocaleString()} Ks`,
+      ``,
+      `<b>🚀 ULTRA PRO</b>`,
+      `• Data: ${PLANS.ultra.dataGb} GB`,
+      `• Validity: ${PLANS.ultra.validityDays} days`,
+      `• Price: ${PLANS.ultra.priceKs.toLocaleString()} Ks`,
+      ``,
+      `👇 Open the app to purchase!`,
+    ].join("\n");
+
+    await sendMiniAppBotMessage(chatId, plansText, {
+      inline_keyboard: [
+        [{ text: "🛒 Buy Plans", web_app: { url: MINI_APP_URL } }],
+      ],
+    });
+  } else if (text === "/info") {
+    const infoText = [
+      `ℹ️ <b>About RYUU VPN</b>`,
+      ``,
+      `🔒 Fast, secure, and reliable VPN service`,
+      `🌏 Optimized for Myanmar users`,
+      `⚡ High-speed servers`,
+      `🛡️ Strong encryption`,
+      `📱 Easy to use`,
+      ``,
+      `<b>Available Commands:</b>`,
+      `/start - Welcome message`,
+      `/plans - View all plans`,
+      `/info - App information`,
+      `/help - Get help`,
+      `/link <username> - Link Telegram account`,
+      ``,
+      `👇 Open the app to get started!`,
+    ].join("\n");
+
+    await sendMiniAppBotMessage(chatId, infoText, {
+      inline_keyboard: [
+        [{ text: "🚀 Open RYUU VPN", web_app: { url: MINI_APP_URL } }],
+      ],
+    });
   } else if (text === "/help") {
     const helpText = [
       `ℹ️ <b>RYUU VPN Help</b>`,
       ``,
-      `Use the app to:`,
+      `<b>Available Commands:</b>`,
+      `/start - Welcome message`,
+      `/plans - View all plans`,
+      `/info - App information`,
+      `/link <username> - Link Telegram account`,
+      ``,
+      `<b>How to use the app:</b>`,
       `• Register or log in to your account`,
       `• Top up your balance`,
       `• Buy or gift VPN plans`,
