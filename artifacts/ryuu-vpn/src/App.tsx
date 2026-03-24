@@ -23,33 +23,34 @@ const queryClient = new QueryClient({
 function Router() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
-      // Check if user has seen the announcement
-      const hasSeenAnnouncement = localStorage.getItem('ryuu_seen_announcement');
-      
-      if (!hasSeenAnnouncement) {
-        setShowAnnouncement(true);
-      } else {
-        // If logged in and seen announcement, redirect to dashboard from home
-        if (window.location.pathname === '/') {
-          navigate('/dashboard');
-        }
-      }
-    }
-  }, [user, loading, navigate]);
+    // Show announcement on every app open
+    setShowAnnouncement(true);
+    setHasInteracted(false);
+  }, []);
 
   const handleDismissAnnouncement = () => {
-    localStorage.setItem('ryuu_seen_announcement', 'true');
     setShowAnnouncement(false);
-    navigate('/dashboard');
+    setHasInteracted(true);
+    
+    // After dismissing announcement, route based on auth state
+    if (user) {
+      // Logged in -> go to dashboard
+      navigate('/dashboard');
+    } else {
+      // Not logged in -> stay on home page (or go to home if on different page)
+      if (window.location.pathname !== '/') {
+        navigate('/');
+      }
+    }
   };
 
   return (
     <>
-      {showAnnouncement && <WelcomeAnnouncement onDismiss={handleDismissAnnouncement} />}
+      {showAnnouncement && !hasInteracted && <WelcomeAnnouncement onDismiss={handleDismissAnnouncement} />}
       <Switch>
         <Route path="/" component={HomePage} />
         <Route path="/dashboard" component={DashboardPage} />

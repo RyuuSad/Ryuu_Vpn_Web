@@ -43,7 +43,7 @@ export function WelcomeAnnouncement({ onDismiss }: WelcomeAnnouncementProps) {
               </div>
 
               <h2 className="font-display text-2xl font-bold text-white mb-3 uppercase tracking-wide">
-                Welcome to RYUU VPN!
+                Latest Updates
               </h2>
 
               <div className="space-y-4 text-left mb-8">
@@ -53,22 +53,14 @@ export function WelcomeAnnouncement({ onDismiss }: WelcomeAnnouncementProps) {
                     <li>• Persistent login - stay logged in across sessions</li>
                     <li>• Telegram notifications for top-ups & expiry</li>
                     <li>• Improved dashboard with real-time stats</li>
-                  </ul>
-                </div>
-
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-                  <h3 className="text-sm font-bold text-amber-400 mb-2 uppercase tracking-wider">⚡ Quick Start</h3>
-                  <ul className="text-sm text-white/70 space-y-1.5">
-                    <li>• Link your Telegram: Send <code className="px-1.5 py-0.5 bg-black/30 rounded text-primary">/link username</code> to bot</li>
-                    <li>• Top up your balance using KBZ/Wave/AYA Pay</li>
-                    <li>• Buy a plan and start browsing securely!</li>
+                    <li>• Auto-redirect to dashboard when logged in</li>
                   </ul>
                 </div>
 
                 <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
-                  <h3 className="text-sm font-bold text-green-400 mb-2 uppercase tracking-wider">💡 Pro Tip</h3>
+                  <h3 className="text-sm font-bold text-green-400 mb-2 uppercase tracking-wider">💡 Important</h3>
                   <p className="text-sm text-white/70">
-                    You'll get notified 3 days before your plan expires. Keep your balance topped up for seamless renewals!
+                    Link your Telegram account using <code className="px-1.5 py-0.5 bg-black/30 rounded text-primary">/link username</code> to receive notifications about top-ups and plan expiry!
                   </p>
                 </div>
               </div>
