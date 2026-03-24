@@ -39,8 +39,17 @@ const PLANS = [
   },
 ];
 
-export function AnnouncementBanner() {
+interface AnnouncementBannerProps {
+  onDismiss?: () => void;
+}
+
+export function AnnouncementBanner({ onDismiss }: AnnouncementBannerProps = {}) {
   const [dismissed, setDismissed] = useState(false);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
 
   return (
     <AnimatePresence>
@@ -104,7 +113,7 @@ export function AnnouncementBanner() {
               {/* Dismiss — sticky at bottom */}
               <div className="relative z-10 px-6 sm:px-8 pb-6 sm:pb-8 pt-3 shrink-0">
                 <button
-                  onClick={() => setDismissed(true)}
+                  onClick={handleDismiss}
                   className="w-full py-3 rounded-xl bg-primary/20 hover:bg-primary/30 border border-primary/40 hover:border-primary/70 text-primary font-bold text-sm tracking-widest uppercase transition-all"
                 >
                   DISMISS
