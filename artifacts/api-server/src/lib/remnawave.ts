@@ -127,24 +127,8 @@ export async function renewRemnawaveUserPlan(
   return data?.response ?? data;
 }
 
-export async function cancelRemnawaveUserPlan(uuid: string): Promise<RemnawaveUser> {
-  const current = await rwFetch(`/api/users/${uuid}`);
-  const currentUser: RemnawaveUser = current?.response ?? current;
-  const usedBytes: number = currentUser.usedTrafficBytes ?? 0;
-
-  // Set limit = usedBytes so remaining = 0, expiry = yesterday so it's immediately expired
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const data = await rwFetch("/api/users", {
-    method: "PATCH",
-    body: JSON.stringify({
-      uuid,
-      trafficLimitBytes: usedBytes,
-      expireAt: yesterday.toISOString(),
-    }),
-  });
-  return data?.response ?? data;
+export async function deleteRemnawaveUser(uuid: string): Promise<void> {
+  await rwFetch(`/api/users/${uuid}`, { method: "DELETE" });
 }
 
 export async function getRemnawaveUser(uuid: string): Promise<RemnawaveUser> {

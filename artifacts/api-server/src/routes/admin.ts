@@ -4,7 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
 import { sendTelegramMessage, notifyUser } from "../lib/telegram.js";
-import { getRemnawaveUser, cancelRemnawaveUserPlan } from "../lib/remnawave.js";
+import { getRemnawaveUser, deleteRemnawaveUser } from "../lib/remnawave.js";
 
 const router = Router();
 
@@ -336,18 +336,19 @@ router.delete("/users/:id/package", requireAdmin, async (req: AdminRequest, res)
   // Pro-rated refund: floor so we never overpay
   const refundKs = Math.floor((daysRemaining / plan.validityDays) * plan.priceKs);
 
-  // Cancel on Remnawave (expire immediately, drain remaining data)
+  // Hard delete the user from Remnawave — subscription URL becomes invalid immediately
   try {
-    await cancelRemnawaveUserPlan(user.remnawaveUuid);
+    await deleteRemnawaveUser(user.remnawaveUuid);
   } catch (err) {
-    req.log.warn({ err }, "Failed to cancel Remnawave plan — continuing with DB update");
+    req.log.warn({ err }, "Failed to delete Remnawave user — continuing with DB update");
   }
 
   const newBalance = user.balanceKs + refundKs;
 
+  // Clear all Remnawave fields — account no longer exists there
   await db
     .update(usersTable)
-    .set({ planId: null, balanceKs: newBalance, updatedAt: new Date() })
+    .set({ planId: null, remnawaveUuid: null, remnawaveShortUuid: null, balanceKs: newBalance, updatedAt: new Date() })
     .where(eq(usersTable.id, id));
 
   if (user.telegramId) {
