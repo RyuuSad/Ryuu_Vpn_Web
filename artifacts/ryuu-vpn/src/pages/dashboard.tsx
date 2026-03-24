@@ -10,7 +10,6 @@ import { CircularProgress } from "@/components/ui/CircularProgress";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { QuickActionsHub } from "@/components/dashboard/QuickActionsHub";
 import { EnhancedBalanceCard } from "@/components/dashboard/EnhancedBalanceCard";
-import { AnnouncementModal } from "@/components/AnnouncementModal";
 
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === "ACTIVE";
@@ -103,8 +102,6 @@ export default function DashboardPage() {
   const [gifting, setGifting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [announcement, setAnnouncement] = useState<{ title: string; message: string } | null>(null);
-  const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/");
@@ -113,13 +110,12 @@ export default function DashboardPage() {
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setStatsLoading(true);
     try {
-      const [s, subData, p, ps, topups, announcementData] = await Promise.all([
+      const [s, subData, p, ps, topups] = await Promise.all([
         api.stats(),
         api.subscription(),
         api.plans(),
         api.purchaseStatus(),
         api.myTopups(),
-        fetch("/api/admin/announcements/active").then(r => r.json()).catch(() => null),
       ]);
       setStats(s);
       setSub(subData);
@@ -127,12 +123,6 @@ export default function DashboardPage() {
       setPurchaseStatus(ps);
       setMyTopups(topups);
       setError(null);
-      
-      // Show announcement if exists (every time)
-      if (announcementData && !silent) {
-        setAnnouncement({ title: announcementData.title, message: announcementData.message });
-        setShowAnnouncement(true);
-      }
     } catch (e) {
       if (!silent) setError((e as Error).message);
     } finally {
@@ -663,15 +653,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Announcement Modal */}
-      {announcement && (
-        <AnnouncementModal
-          isOpen={showAnnouncement}
-          onClose={() => setShowAnnouncement(false)}
-          title={announcement.title}
-          message={announcement.message}
-        />
-      )}
     </div>
   );
 }
