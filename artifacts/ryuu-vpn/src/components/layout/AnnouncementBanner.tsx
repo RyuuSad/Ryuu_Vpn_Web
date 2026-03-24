@@ -1,43 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const ANNOUNCEMENT_TITLE = "📣 RYUU VPN SHOP - New Plan Updates! 🐉";
-
-const ANNOUNCEMENT_BODY = `ကျွန်တော်တို့ RYUU VPN ကို အစဉ်တစိုက် အားပေးနေကြတဲ့ Customer များအတွက် ပိုမိုကောင်းမွန်တဲ့ Service နဲ့ ပိုမိုတန်ဆာရှိတဲ့ Plan အသစ်တွေကို မိတ်ဆက်ပေးလိုက်ပါပြီ။ 🚀
-စင်ကာပူ Server အစစ်ကို အသုံးပြုထားလို့ Gaming, Streaming နဲ့ Social Media အားလုံးအတွက် လိုင်းဆွဲအား အကောင်းဆုံး ဖြစ်မှာပါ။ အခုပဲ ကိုယ်နဲ့ကိုက်ညီမယ့် Plan ကို ရွေးချယ်လိုက်ပါ!`;
-
-const PLANS = [
-  {
-    label: "🔹 1. STARTER PLAN (Trial & Light User)",
-    lines: [
-      "အစမ်းသုံးကြည့်ချင်သူများနဲ့ စာပို့၊ ဖုန်းပြောရုံ သုံးမယ့်သူများအတွက်။",
-      "• Data: 50 GB",
-      "• Validity: 20 Days (ရက် ၂၀)",
-      "• Price: 3,000 Ks",
-      "• Special Benefit: သက်တမ်းမကုန်ခင် ပြန်တိုးပါက လက်ကျန် Data များအားလုံးကို ရှေ့လထဲ ပေါင်းထည့်ပေးပါသည်။ ✅",
-    ],
-  },
-  {
-    label: "🔹 2. PREMIUM VALUE (Most Popular) ✨",
-    lines: [
-      "ကျွန်တော်တို့ရဲ့ Best Seller Plan ပါ! ဈေးအသက်သာဆုံးနဲ့ အတန်ဆုံး သုံးချင်သူများအတွက်။",
-      "• Data: 120 GB (Data ပမာဏ ၂ ဆကျော် ပိုရ!)",
-      "• Validity: 30 Days (တစ်လအပြည့်)",
-      "• Price: 5,000 Ks",
-      "• Special Benefit: သက်တမ်းမကုန်ခင် ပြန်တိုးပါက လက်ကျန် Data များအားလုံးကို ရှေ့လထဲ ပေါင်းထည့်ပေးပါသည်။ ✅",
-    ],
-  },
-  {
-    label: "🔹 3. ULTRA PRO (Heavy User)",
-    lines: [
-      "Download ဆွဲမလား၊ 4K Video ကြည့်မလား စိတ်ကြိုက်သုံး။",
-      "• Data: 250 GB",
-      "• Validity: 30 Days",
-      "• Price: 10,000 Ks",
-      "• Special Benefit: လက်ကျန် Data ပေါင်းထည့်ခွင့် ရှိသည့်အပြင် High-Speed Priority ရရှိပါမည်။ ✅",
-    ],
-  },
-];
 
 interface AnnouncementBannerProps {
   onDismiss?: () => void;
@@ -45,11 +7,25 @@ interface AnnouncementBannerProps {
 
 export function AnnouncementBanner({ onDismiss }: AnnouncementBannerProps = {}) {
   const [dismissed, setDismissed] = useState(false);
+  const [announcement, setAnnouncement] = useState<{ title: string; message: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/announcements/active")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && data.title && data.message) {
+          setAnnouncement({ title: data.title, message: data.message });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleDismiss = () => {
     setDismissed(true);
     onDismiss?.();
   };
+
+  if (!announcement) return null;
 
   return (
     <AnimatePresence>
@@ -83,31 +59,12 @@ export function AnnouncementBanner({ onDismiss }: AnnouncementBannerProps = {}) 
 
               {/* Scrollable content */}
               <div className="relative z-10 p-6 sm:p-8 overflow-y-auto flex-1">
-                {/* Title */}
                 <h2 className="text-white font-bold text-lg sm:text-xl leading-snug mb-4">
-                  {ANNOUNCEMENT_TITLE}
+                  {announcement.title}
                 </h2>
-
-                {/* Body */}
-                <p className="text-purple-200/85 text-sm leading-relaxed mb-5 whitespace-pre-line">
-                  {ANNOUNCEMENT_BODY}
+                <p className="text-purple-200/85 text-sm leading-relaxed whitespace-pre-wrap">
+                  {announcement.message}
                 </p>
-
-                {/* Plans */}
-                <div className="space-y-4">
-                  {PLANS.map((plan, i) => (
-                    <div key={i} className="rounded-xl bg-white/5 border border-white/10 p-4">
-                      <p className="text-white font-semibold text-sm mb-2">{plan.label}</p>
-                      <div className="space-y-1">
-                        {plan.lines.map((line, j) => (
-                          <p key={j} className="text-purple-200/80 text-xs leading-relaxed">
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* Dismiss — sticky at bottom */}
