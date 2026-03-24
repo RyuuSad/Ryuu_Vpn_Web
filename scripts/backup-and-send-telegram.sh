@@ -65,8 +65,8 @@ echo -e "${YELLOW}📤 Sending backup to Telegram...${NC}"
 
 # Get stats for the message
 TOTAL_USERS=$(docker exec ryuu-vpn-db psql -U "$DB_USER" "$DB_NAME" -t -c "SELECT COUNT(*) FROM users;" | tr -d ' ')
-TOTAL_BALANCE=$(docker exec ryuu-vpn-db psql -U "$DB_USER" "$DB_NAME" -t -c "SELECT COALESCE(SUM(\"balanceKs\"), 0) FROM users;" | tr -d ' ')
-ACTIVE_SUBS=$(docker exec ryuu-vpn-db psql -U "$DB_USER" "$DB_NAME" -t -c "SELECT COUNT(*) FROM users WHERE \"planId\" IS NOT NULL;" | tr -d ' ')
+TOTAL_BALANCE=$(docker exec ryuu-vpn-db psql -U "$DB_USER" "$DB_NAME" -t -c "SELECT COALESCE(SUM(balance_ks), 0) FROM users;" | tr -d ' ')
+ACTIVE_SUBS=$(docker exec ryuu-vpn-db psql -U "$DB_USER" "$DB_NAME" -t -c "SELECT COUNT(*) FROM users WHERE plan_id IS NOT NULL;" | tr -d ' ')
 
 # Create caption with stats
 CAPTION="🔐 *Daily Database Backup*
