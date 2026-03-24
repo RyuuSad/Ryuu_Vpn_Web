@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, type DashboardStats, type SubscriptionInfo, type Plan, type PurchaseStatus, type TopupRequest } from "@/lib/api";
-import { LogOut, Copy, Check, Wifi, Shield, Clock, Database, Wallet, ShoppingCart, ArrowUpRight, Gift, X, User, History, ChevronDown, ChevronUp, RefreshCw, TrendingUp, Zap, Calendar, Star, Award, CheckCircle2 } from "lucide-react";
+import { LogOut, Copy, Check, Wifi, Shield, Clock, Database, Wallet, ShoppingCart, ArrowUpRight, Gift, X, User, History, ChevronDown, ChevronUp, RefreshCw, TrendingUp, Zap, Calendar, Star, Award, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CircularProgress } from "@/components/ui/CircularProgress";
@@ -308,6 +308,17 @@ export default function DashboardPage() {
                           <AnimatedCounter value={stats?.remainingGb ?? 0} decimals={1} className="text-primary font-bold" />
                           <span className="text-white/40">GB remaining</span>
                         </div>
+                        {/* Data usage warning at 80% */}
+                        {stats?.limitGb && (stats.usedGb / stats.limitGb) >= 0.8 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold mt-3"
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            {(stats.usedGb / stats.limitGb) >= 0.95 ? "Almost out of data!" : "Running low on data"}
+                          </motion.div>
+                        )}
                       </div>
                     </div>
                   )}
