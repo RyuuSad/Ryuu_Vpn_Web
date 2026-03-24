@@ -354,7 +354,7 @@ export default function AdminPage() {
               </motion.div>
             ))}
           </div>
-        ) : (
+        ) : tab === "users" ? (
           <div className="space-y-3">
             {users.length === 0 ? (
               <div className="text-center py-16 text-white/30">No users yet.</div>
