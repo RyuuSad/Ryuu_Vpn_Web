@@ -49,15 +49,16 @@ router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
 
   const plan = getPlan(user.planId ?? "");
 
-  const [rwUser, bandwidth] = await Promise.allSettled([
+  const [rwUser, subscription] = await Promise.allSettled([
     getRemnawaveUser(user.remnawaveUuid),
-    getUserBandwidth(user.remnawaveUuid),
+    getSubscription(user.remnawaveUuid),
   ]);
 
   const vpnUser = rwUser.status === "fulfilled" ? rwUser.value : null;
-  const bw = bandwidth.status === "fulfilled" ? bandwidth.value : null;
+  const sub = subscription.status === "fulfilled" ? subscription.value : null;
 
-  const usedBytes: number = vpnUser?.usedTrafficBytes ?? 0;
+  // Get usage from subscription endpoint - trafficUsedBytes is a string, need to parse it
+  const usedBytes: number = sub?.user?.trafficUsedBytes ? parseInt(sub.user.trafficUsedBytes, 10) : 0;
   const limitBytes: number = vpnUser?.trafficLimitBytes ?? plan?.trafficLimitBytes ?? 0;
   const remainingBytes = Math.max(0, limitBytes - usedBytes);
 
@@ -74,7 +75,7 @@ router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
     remainingGb: +(remainingBytes / (1024 ** 3)).toFixed(2),
     limitGb: +(limitBytes / (1024 ** 3)).toFixed(2),
     balanceKs: user.balanceKs,
-    bandwidth: bw,
+    bandwidth: sub,
   });
 });
 
