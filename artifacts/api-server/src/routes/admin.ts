@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, pool, usersTable, topupRequestsTable, planPurchasesTable } from "@workspace/db";
+import { db, pool, usersTable, topupRequestsTable, planPurchasesTable, announcementsTable } from "@workspace/db";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
@@ -460,12 +460,12 @@ router.post("/announcements", requireAdmin, async (req: AdminRequest, res) => {
     message,
   ].join("\n");
   
-  // Send to all linked users (fire and forget)
-  for (const user of linkedUsersResult.rows) {
-    if (user.telegram_id) {
-      sendTelegramMessage(user.telegram_id, announcementText).catch(() => {});
-    }
-  }
+  // Send to all linked users via Mini App bot (fire and forget)
+  await Promise.allSettled(
+    linkedUsersResult.rows
+      .filter((u) => u.telegram_id)
+      .map((u) => notifyUser(u.telegram_id, announcementText)),
+  );
   
   res.json({ success: true, announcement, sentTo: linkedUsersResult.rows.length });
 });
