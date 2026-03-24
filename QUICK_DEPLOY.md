@@ -122,7 +122,7 @@ chmod +x scripts/restore-database.sh
 
 ## 🔄 Automated Backups
 
-### Set Up Daily Backups
+### Option 1: Daily Backups to Server Only
 
 ```bash
 # Add to crontab
@@ -132,11 +132,40 @@ crontab -e
 0 2 * * * /opt/ryuu-vpn/scripts/backup-database.sh
 ```
 
+### Option 2: Daily Backups Sent to Telegram 📱
+
+**Get backups delivered to your Telegram every day!**
+
+```bash
+# Make script executable
+chmod +x /opt/ryuu-vpn/scripts/backup-and-send-telegram.sh
+
+# Test it first
+/opt/ryuu-vpn/scripts/backup-and-send-telegram.sh
+
+# Add to crontab
+crontab -e
+
+# Add this line (daily at 2 AM)
+0 2 * * * /opt/ryuu-vpn/scripts/backup-and-send-telegram.sh
+```
+
+**What you'll receive:**
+- 📦 Compressed backup file (.sql.gz)
+- 📊 Database statistics (users, balance, subscriptions)
+- 💾 Backup size and timestamp
+- ✅ Success confirmation
+
 ### Manual Backup Anytime
 
 ```bash
 cd /opt/ryuu-vpn
+
+# Local backup only
 ./scripts/backup-database.sh
+
+# Backup + send to Telegram
+./scripts/backup-and-send-telegram.sh
 ```
 
 ---
@@ -236,6 +265,7 @@ If you encounter issues:
 | Task | Command |
 |------|---------|
 | **Backup DB** | `./scripts/backup-database.sh` |
+| **Backup + Telegram** | `./scripts/backup-and-send-telegram.sh` |
 | **Restore DB** | `./scripts/restore-database.sh <file>` |
 | **View Logs** | `docker logs -f ryuu-vpn-app` |
 | **Restart** | `docker compose restart` |
