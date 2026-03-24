@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { db, usersTable, planPurchasesTable, pool } from "@workspace/db";
 import { eq, and, gte, count, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { businessLogger } from "../lib/businessLogger.js";
 import {
   getRemnawaveUser,
   getUserBandwidth,
@@ -230,6 +231,16 @@ router.post("/buy-plan", requireAuth, purchaseLimiter, async (req: AuthRequest, 
     } catch (err) {
       await client.query("ROLLBACK");
       const msg = err instanceof Error ? err.message : String(err);
+      
+      // Log VPN provisioning error
+      businessLogger.businessError({
+        event: "vpn_provisioning_failed",
+        userId: user.id,
+        username: user.username,
+        error: err instanceof Error ? err : new Error(msg),
+        context: { planId, remnawaveUuid: user.remnawave_uuid },
+      });
+      
       res.status(502).json({ error: `Failed to activate VPN: ${msg}` });
       return;
     }
@@ -248,6 +259,32 @@ router.post("/buy-plan", requireAuth, purchaseLimiter, async (req: AuthRequest, 
     );
 
     await client.query("COMMIT");
+
+    // Log successful purchase
+    businessLogger.planPurchased({
+      userId: user.id,
+      username: user.username,
+      planId,
+      priceKs: plan.priceKs,
+      newBalance,
+    });
+
+    // Log VPN provisioning
+    if (user.remnawave_uuid) {
+      businessLogger.vpnPlanRenewed({
+        userId: user.id,
+        username: user.username,
+        remnawaveUuid: user.remnawave_uuid,
+        planId,
+      });
+    } else {
+      businessLogger.vpnUserCreated({
+        userId: user.id,
+        username: user.username,
+        remnawaveUuid: remnawaveUuid!,
+        planId,
+      });
+    }
 
     const purchasesAfter = purchasesThisMonth + 1;
 

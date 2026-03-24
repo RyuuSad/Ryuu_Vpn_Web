@@ -4,6 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
 import { sendTelegramMessage, notifyUser } from "../lib/telegram.js";
+import { businessLogger } from "../lib/businessLogger.js";
 
 const router = Router();
 
@@ -107,6 +108,16 @@ router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) 
   });
 
   const { user, newBalance } = result;
+
+  // Log top-up approval
+  businessLogger.topupApproved({
+    userId: topup.userId,
+    username: user.username,
+    amountKs: topup.amountKs,
+    newBalance,
+    approvedBy: req.user!.username,
+    paymentMethod: topup.paymentMethod,
+  });
 
   const notifyText = [
     `✅ <b>Top-Up Approved</b>`,
