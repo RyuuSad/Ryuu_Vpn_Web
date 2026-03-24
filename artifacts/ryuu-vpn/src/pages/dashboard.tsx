@@ -419,29 +419,6 @@ export default function DashboardPage() {
               </motion.div>
             )}
 
-            {stats?.status !== "NO_PLAN" && (
-              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
-                <GlassCard className="p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Database className="w-4 h-4 text-secondary" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-white/50">Usage Details</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { label: "Used", value: `${stats?.usedGb} GB`, color: "text-white" },
-                      { label: "Remaining", value: `${stats?.remainingGb} GB`, color: "text-primary" },
-                      { label: "Total", value: `${stats?.limitGb} GB`, color: "text-secondary" },
-                    ].map((item) => (
-                      <div key={item.label} className="text-center p-3 bg-black/20 rounded-xl">
-                        <div className={`font-display text-2xl font-bold ${item.color} mb-1`}>{item.value}</div>
-                        <div className="text-xs text-white/40 uppercase tracking-wider">{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              </motion.div>
-            )}
-
             {/* Buy a Plan */}
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}
               className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">

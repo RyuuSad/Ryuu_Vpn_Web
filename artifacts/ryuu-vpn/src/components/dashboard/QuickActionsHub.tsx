@@ -21,29 +21,7 @@ export function QuickActionsHub() {
       description: "Add funds to your account",
       action: () => navigate("/topup"),
       gradient: "from-primary to-purple-600",
-      pulse: false,
-    },
-    {
-      icon: <ShoppingCart className="w-6 h-6" />,
-      title: "Buy a Plan",
-      description: "Get started with VPN",
-      action: () => {
-        const buySection = document.getElementById("buy-plans");
-        buySection?.scrollIntoView({ behavior: "smooth" });
-      },
-      gradient: "from-cyan-500 to-primary",
       pulse: true, // Primary CTA
-    },
-    {
-      icon: <Gift className="w-6 h-6" />,
-      title: "Gift a Plan",
-      description: "Send VPN to friends",
-      action: () => {
-        const giftBtn = document.querySelector('[data-gift-button]') as HTMLButtonElement;
-        giftBtn?.click();
-      },
-      gradient: "from-pink-500 to-rose-600",
-      pulse: false,
     },
   ];
 
@@ -59,7 +37,7 @@ export function QuickActionsHub() {
         <h2 className="text-sm font-bold uppercase tracking-widest text-white/50">Quick Actions</h2>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {actions.map((action, index) => (
           <motion.button
             key={action.title}
