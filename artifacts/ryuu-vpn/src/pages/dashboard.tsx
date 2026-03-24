@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CircularProgress } from "@/components/ui/CircularProgress";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
-import { QuickActionsHub } from "@/components/dashboard/QuickActionsHub";
 import { EnhancedBalanceCard } from "@/components/dashboard/EnhancedBalanceCard";
 
 function StatusBadge({ status }: { status: string }) {
@@ -253,12 +252,8 @@ export default function DashboardPage() {
           <EnhancedBalanceCard
             balance={stats?.balanceKs ?? 0}
             onTopUp={() => navigate("/topup")}
-            onViewHistory={() => setTopupsOpen(!topupsOpen)}
           />
         </div>
-
-        {/* Quick Actions Hub */}
-        <QuickActionsHub />
 
         {pendingTopup && (
           <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-5 flex items-center gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
