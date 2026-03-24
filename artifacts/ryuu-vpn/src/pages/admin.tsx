@@ -101,7 +101,12 @@ export default function AdminPage() {
         const data = await api.admin.users();
         setUsers(data);
       } else if (tab === "announcements") {
-        setAnnouncements([]);
+        const token = localStorage.getItem("ryuu_token");
+        const res = await fetch("/api/admin/announcements", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setAnnouncements(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
@@ -543,10 +548,13 @@ export default function AdminPage() {
                     }
                     setActionLoading("create_announcement");
                     try {
+                      const token = localStorage.getItem("ryuu_token");
                       const response = await fetch("/api/admin/announcements", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${token}`,
+                        },
                         body: JSON.stringify({ title: announcementTitle, message: announcementMessage }),
                       });
                       const result = await response.json();
@@ -611,9 +619,10 @@ export default function AdminPage() {
                         onClick={async () => {
                           setActionLoading(announcement.id);
                           try {
+                            const token = localStorage.getItem("ryuu_token");
                             const response = await fetch(`/api/admin/announcements/${announcement.id}`, {
                               method: "DELETE",
-                              credentials: "include",
+                              headers: { Authorization: `Bearer ${token}` },
                             });
                             if (response.ok) {
                               toast({ title: "Success", description: "Announcement deleted" });
