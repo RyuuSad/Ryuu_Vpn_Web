@@ -4,6 +4,7 @@ import { db, usersTable, planPurchasesTable, pool } from "@workspace/db";
 import { eq, and, gte, count, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { businessLogger } from "../lib/businessLogger.js";
+import { cacheMiddleware } from "../lib/cache.js";
 import {
   getRemnawaveUser,
   getUserBandwidth,
@@ -111,7 +112,8 @@ router.get("/subscription", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-router.get("/plans", (_req, res) => {
+// Cache plans for 5 minutes (they rarely change)
+router.get("/plans", cacheMiddleware("plans", 300), (_req, res) => {
   res.json(Object.values(PLANS));
 });
 
