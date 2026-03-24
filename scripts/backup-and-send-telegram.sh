@@ -20,9 +20,13 @@ echo -e "${GREEN}🔄 Starting database backup...${NC}"
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
-# Load environment variables
+# Load environment variables (export them properly)
 if [ -f /opt/ryuu-vpn/.env ]; then
-    source /opt/ryuu-vpn/.env
+    set -a
+    source <(grep -v '^#' /opt/ryuu-vpn/.env | grep -v 'CHAT_IDS')
+    set +a
+    # Handle TELEGRAM_ADMIN_CHAT_IDS separately (has commas)
+    export TELEGRAM_ADMIN_CHAT_IDS=$(grep 'TELEGRAM_ADMIN_CHAT_IDS' /opt/ryuu-vpn/.env | cut -d'=' -f2)
 else
     echo -e "${RED}❌ Error: .env file not found${NC}"
     exit 1
