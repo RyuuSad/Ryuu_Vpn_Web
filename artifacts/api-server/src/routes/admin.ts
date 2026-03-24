@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, topupRequestsTable, planPurchasesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
 import { sendTelegramMessage, notifyUser } from "../lib/telegram.js";
@@ -344,6 +344,20 @@ router.delete("/users/:id/package", requireAdmin, async (req: AdminRequest, res)
   }
 
   const newBalance = user.balanceKs + refundKs;
+
+  // Remove the most recent purchase record this month so the slot comes back
+  const now2 = new Date();
+  const monthStart = new Date(now2.getFullYear(), now2.getMonth(), 1);
+  const [latestPurchase] = await db
+    .select({ id: planPurchasesTable.id })
+    .from(planPurchasesTable)
+    .where(and(eq(planPurchasesTable.userId, id), gte(planPurchasesTable.purchasedAt, monthStart)))
+    .orderBy(desc(planPurchasesTable.purchasedAt))
+    .limit(1);
+
+  if (latestPurchase) {
+    await db.delete(planPurchasesTable).where(eq(planPurchasesTable.id, latestPurchase.id));
+  }
 
   // Clear all Remnawave fields — account no longer exists there
   await db
