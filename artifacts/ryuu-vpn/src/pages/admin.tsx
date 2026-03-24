@@ -6,7 +6,7 @@ import { api, type AdminTopup, type AdminUser } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   Check, X, Users, CreditCard, RefreshCw, ChevronDown, ChevronUp,
-  ArrowLeft, ShieldCheck, ShieldOff, Loader2, Plus, Minus, Trash2, PackageX,
+  ArrowLeft, ShieldCheck, ShieldOff, Loader2, Plus, Minus, Trash2, PackageX, Megaphone,
 } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
@@ -71,9 +71,10 @@ export default function AdminPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const [tab, setTab] = useState<"topups" | "users">("topups");
+  const [tab, setTab] = useState<"topups" | "users" | "announcements">("topups");
   const [topups, setTopups] = useState<AdminTopup[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
@@ -81,6 +82,8 @@ export default function AdminPage() {
   const [expandedScreenshot, setExpandedScreenshot] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [cancelPackageConfirm, setCancelPackageConfirm] = useState<string | null>(null);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
 
   useEffect(() => {
     if (!authLoading && (!user || !user.isAdmin)) {
@@ -94,9 +97,15 @@ export default function AdminPage() {
       if (tab === "topups") {
         const data = await api.admin.topups();
         setTopups(data);
-      } else {
+      } else if (tab === "users") {
         const data = await api.admin.users();
         setUsers(data);
+      } else if (tab === "announcements") {
+        const response = await fetch("/api/admin/announcements", {
+          credentials: "include",
+        });
+        const data = await response.json();
+        setAnnouncements(data);
       }
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
@@ -251,6 +260,15 @@ export default function AdminPage() {
           >
             <Users className="w-4 h-4" />
             Users
+          </button>
+          <button
+            onClick={() => setTab("announcements")}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${
+              tab === "announcements" ? "bg-primary text-white" : "bg-white/5 text-white/50 hover:text-white"
+            }`}
+          >
+            <Megaphone className="w-4 h-4" />
+            Announcements
           </button>
           <button onClick={fetchData} className="ml-auto p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all">
             <RefreshCw className="w-4 h-4" />
@@ -487,7 +505,146 @@ export default function AdminPage() {
               </motion.div>
             ))}
           </div>
-        )}
+        ) : tab === "announcements" ? (
+          <div className="space-y-6">
+            {/* Create Announcement Form */}
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-amber-400" />
+                Create New Announcement
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Title</label>
+                  <input
+                    type="text"
+                    value={announcementTitle}
+                    onChange={(e) => setAnnouncementTitle(e.target.value)}
+                    placeholder="e.g., 🔥 RYUU VPN SHOP - New Plan Updates! 🎉"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Message</label>
+                  <textarea
+                    value={announcementMessage}
+                    onChange={(e) => setAnnouncementMessage(e.target.value)}
+                    placeholder="Enter your announcement message here..."
+                    rows={6}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+                      toast({ title: "Error", description: "Title and message are required", variant: "destructive" });
+                      return;
+                    }
+                    setActionLoading("create_announcement");
+                    try {
+                      const response = await fetch("/api/admin/announcements", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ title: announcementTitle, message: announcementMessage }),
+                      });
+                      const result = await response.json();
+                      if (response.ok) {
+                        toast({ title: "Success", description: `Announcement created and sent to ${result.sentTo} users!` });
+                        setAnnouncementTitle("");
+                        setAnnouncementMessage("");
+                        fetchData();
+                      } else {
+                        toast({ title: "Error", description: result.error || "Failed to create announcement", variant: "destructive" });
+                      }
+                    } catch (err) {
+                      toast({ title: "Error", description: "Failed to create announcement", variant: "destructive" });
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  }}
+                  disabled={actionLoading === "create_announcement"}
+                  className="w-full px-6 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actionLoading === "create_announcement" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Megaphone className="w-5 h-5" />
+                      Create & Broadcast Announcement
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Announcements List */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">Previous Announcements</h3>
+              {announcements.length === 0 ? (
+                <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-8 text-center">
+                  <Megaphone className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                  <p className="text-white/40">No announcements yet</p>
+                </div>
+              ) : (
+                announcements.map((announcement) => (
+                  <motion.div
+                    key={announcement.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6"
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="text-lg font-bold text-white">{announcement.title}</h4>
+                          {announcement.is_active && (
+                            <span className="bg-green-500/10 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full text-xs font-bold uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-white/70 whitespace-pre-wrap">{announcement.message}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setActionLoading(announcement.id);
+                          try {
+                            const response = await fetch(`/api/admin/announcements/${announcement.id}`, {
+                              method: "DELETE",
+                              credentials: "include",
+                            });
+                            if (response.ok) {
+                              toast({ title: "Success", description: "Announcement deleted" });
+                              fetchData();
+                            } else {
+                              toast({ title: "Error", description: "Failed to delete announcement", variant: "destructive" });
+                            }
+                          } catch (err) {
+                            toast({ title: "Error", description: "Failed to delete announcement", variant: "destructive" });
+                          } finally {
+                            setActionLoading(null);
+                          }
+                        }}
+                        disabled={actionLoading === announcement.id}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/30 hover:text-red-400 transition-all disabled:opacity-40"
+                      >
+                        {actionLoading === announcement.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="text-xs text-white/30">
+                      Created: {new Date(announcement.created_at).toLocaleString()}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
