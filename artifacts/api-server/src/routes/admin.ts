@@ -4,7 +4,6 @@ import { eq, desc } from "drizzle-orm";
 import { requireAdmin, type AdminRequest } from "../middlewares/adminAuth.js";
 import { getPlan, PLANS } from "../lib/plans.js";
 import { sendTelegramMessage, notifyUser } from "../lib/telegram.js";
-import { businessLogger } from "../lib/businessLogger.js";
 
 const router = Router();
 
@@ -77,47 +76,23 @@ router.post("/topups/:id/approve", requireAdmin, async (req: AdminRequest, res) 
     return;
   }
 
-  // Use transaction to ensure atomicity
-  const result = await db.transaction(async (tx) => {
-    // Update topup status
-    await tx
-      .update(topupRequestsTable)
-      .set({ status: "approved", adminNote: adminNote?.trim() || null, updatedAt: new Date() })
-      .where(eq(topupRequestsTable.id, id));
+  await db
+    .update(topupRequestsTable)
+    .set({ status: "approved", adminNote: adminNote?.trim() || null, updatedAt: new Date() })
+    .where(eq(topupRequestsTable.id, id));
 
-    // Get user info
-    const [user] = await tx
-      .select({ balanceKs: usersTable.balanceKs, username: usersTable.username, telegramId: usersTable.telegramId })
-      .from(usersTable)
-      .where(eq(usersTable.id, topup.userId))
-      .limit(1);
+  const [user] = await db
+    .select({ balanceKs: usersTable.balanceKs, username: usersTable.username, telegramId: usersTable.telegramId })
+    .from(usersTable)
+    .where(eq(usersTable.id, topup.userId))
+    .limit(1);
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+  const newBalance = (user?.balanceKs ?? 0) + topup.amountKs;
 
-    const newBalance = user.balanceKs + topup.amountKs;
-
-    // Update user balance
-    await tx
-      .update(usersTable)
-      .set({ balanceKs: newBalance, updatedAt: new Date() })
-      .where(eq(usersTable.id, topup.userId));
-
-    return { user, newBalance };
-  });
-
-  const { user, newBalance } = result;
-
-  // Log top-up approval
-  businessLogger.topupApproved({
-    userId: topup.userId,
-    username: user.username,
-    amountKs: topup.amountKs,
-    newBalance,
-    approvedBy: req.user!.username,
-    paymentMethod: topup.paymentMethod,
-  });
+  await db
+    .update(usersTable)
+    .set({ balanceKs: newBalance, updatedAt: new Date() })
+    .where(eq(usersTable.id, topup.userId));
 
   const notifyText = [
     `✅ <b>Top-Up Approved</b>`,
