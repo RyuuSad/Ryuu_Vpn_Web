@@ -13,69 +13,64 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Storage helper that uses BOTH localStorage and Telegram CloudStorage
-// localStorage works everywhere, CloudStorage persists in Telegram Mini App
+/**
+ * Dual-storage helper: persists to localStorage (all envs) and
+ * Telegram CloudStorage (Telegram Mini App only).
+ * All console.log calls removed — they were leaking auth state to production.
+ */
 const storage = {
   async getItem(key: string): Promise<string | null> {
-    // Try localStorage first (works in all environments)
     const localValue = localStorage.getItem(key);
-    if (localValue) {
-      console.log('[Storage] Found token in localStorage');
-      return localValue;
-    }
+    if (localValue) return localValue;
 
-    // If in Telegram, also try CloudStorage
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
-      console.log('[Storage] Checking Telegram CloudStorage');
       return new Promise((resolve) => {
         tg.CloudStorage.getItem(key, (_err: any, value: string | null) => {
           if (value) {
-            console.log('[Storage] Found token in CloudStorage, syncing to localStorage');
+            // Sync back to localStorage for faster access next time
             localStorage.setItem(key, value);
           }
           resolve(value || null);
         });
       });
     }
-    
+
     return null;
   },
-  
+
   async setItem(key: string, value: string): Promise<void> {
-    // Always save to localStorage
     localStorage.setItem(key, value);
-    console.log('[Storage] Saved to localStorage');
-    
-    // Also save to CloudStorage if in Telegram
+
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
-      console.log('[Storage] Also saving to Telegram CloudStorage');
       return new Promise((resolve) => {
-        tg.CloudStorage.setItem(key, value, () => {
-          console.log('[Storage] Saved to CloudStorage');
-          resolve();
-        });
+        tg.CloudStorage.setItem(key, value, () => resolve());
       });
     }
   },
-  
+
   async removeItem(key: string): Promise<void> {
-    // Remove from both
     localStorage.removeItem(key);
-    console.log('[Storage] Removed from localStorage');
-    
+
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.CloudStorage) {
       return new Promise((resolve) => {
-        tg.CloudStorage.removeItem(key, () => {
-          console.log('[Storage] Removed from CloudStorage');
-          resolve();
-        });
+        tg.CloudStorage.removeItem(key, () => resolve());
       });
     }
   },
 };
+
+function getTelegramId(): string | undefined {
+  try {
+    const tg = (window as any).Telegram?.WebApp;
+    const id = tg?.initDataUnsafe?.user?.id;
+    return id ? String(id) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -83,14 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load token from storage on mount
     storage.getItem("ryuu_token").then((savedToken) => {
       if (!savedToken) {
         setLoading(false);
         return;
       }
       setToken(savedToken);
-      api.me()
+      api
+        .me()
         .then((u) => setUser(u))
         .catch(() => {
           storage.removeItem("ryuu_token");
@@ -99,29 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .finally(() => setLoading(false));
     });
   }, []);
-
-  const getTelegramId = (): string | undefined => {
-    try {
-      const tg = (window as any).Telegram?.WebApp;
-      if (!tg) {
-        console.log('[Auth] Telegram WebApp not available');
-        return undefined;
-      }
-      
-      // Wait for Telegram SDK to be ready
-      if (tg.initDataUnsafe?.user?.id) {
-        const id = String(tg.initDataUnsafe.user.id);
-        console.log('[Auth] Telegram ID found:', id);
-        return id;
-      }
-      
-      console.log('[Auth] Telegram ID not found in initDataUnsafe');
-      return undefined;
-    } catch (err) {
-      console.error('[Auth] Error getting Telegram ID:', err);
-      return undefined;
-    }
-  };
 
   const login = async (username: string, password: string) => {
     const res = await api.login(username, password, getTelegramId());
