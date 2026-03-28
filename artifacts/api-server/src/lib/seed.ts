@@ -2,40 +2,43 @@ import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { logger } from "./logger.js";
 
-const FALLBACK_HASHES: Record<string, string> = {
-  ryuu: "$2b$12$IS8LRjQr/IKdfuL4MBrMCeTF454HGTKAzKHagKG5SY6/tqPBUHCe6",
-  sayuri: "$2b$12$CrvkJJzI0rm6jBllMc.lDOExI0iWhn8MHA2WGY8D4tozw4danYP/e",
-};
+const ADMIN_USERNAMES = ["ryuu", "sayuri"];
 
 export async function seedAdminUsers() {
   const adminSecret = process.env["ADMIN_SECRET"];
 
-  let passwordHash: string;
-
-  if (adminSecret) {
-    passwordHash = await bcrypt.hash(adminSecret, 12);
-    logger.info("Admin users seeded with ADMIN_SECRET password");
-  } else {
-    passwordHash = FALLBACK_HASHES["ryuu"]!;
+  if (!adminSecret) {
+    // In production, refuse to start without a real admin secret.
+    // In development/test, allow a weak default but warn loudly.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "ADMIN_SECRET environment variable is required in production. " +
+          "Set it in your .env file and restart."
+      );
+    }
     logger.warn(
-      "ADMIN_SECRET not set — admin users seeded with dev default passwords (ryuu123 / sayuri123). Set ADMIN_SECRET in production.",
+      "ADMIN_SECRET not set — admin users seeded with dev default password 'dev_only_123'. " +
+        "NEVER use this in production."
     );
   }
 
-  const admins = [
-    { username: "ryuu", passwordHash },
-    { username: "sayuri", passwordHash },
-  ];
+  // Hash is computed at runtime — never stored in source code.
+  const password = adminSecret ?? "dev_only_123";
+  const passwordHash = await bcrypt.hash(password, 12);
 
-  for (const admin of admins) {
+  if (adminSecret) {
+    logger.info("Admin users seeded with ADMIN_SECRET password");
+  }
+
+  for (const username of ADMIN_USERNAMES) {
     const existing = await db.query.usersTable.findFirst({
-      where: (u, { eq }) => eq(u.username, admin.username),
+      where: (u, { eq }) => eq(u.username, username),
       columns: { id: true },
     });
 
     if (!existing) {
-      await db.insert(usersTable).values({ ...admin, isAdmin: true });
-      logger.info({ username: admin.username }, "Admin user created");
+      await db.insert(usersTable).values({ username, passwordHash, isAdmin: true });
+      logger.info({ username }, "Admin user created");
     }
   }
 }
